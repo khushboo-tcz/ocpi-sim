@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OCPI CPO Dashboard</title><style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:#f3f6fb;color:#172033}
+header{background:#14264d;color:white;padding:22px max(20px,calc((100% - 1100px)/2))}
+header h1{margin:0 0 7px;font-size:24px}header p{margin:0;color:#dbe5fb}
+nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px}nav a{color:white}
+main{max-width:1100px;margin:24px auto;padding:0 18px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.stat{background:white;border:1px solid #e2e8f0;border-radius:10px;padding:18px}
+.muted{color:#64748b;line-height:1.5}.badge{display:inline-block;border-radius:999px;padding:6px 10px;background:#dcfce7;color:#166534;font-weight:700}
+button{padding:10px 14px;border:0;border-radius:7px;background:#2458d3;color:white;font-weight:650;cursor:pointer}
+input,select,textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:7px;margin:7px 0 14px;font:inherit}
+label{font-size:13px;font-weight:650}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#d1fae5;padding:14px;border-radius:8px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}header{padding:20px}}
+</style></head>
+<body><header><h1>CPO Dashboard</h1><p>OCPI 2.2.1 · Credentials handshake completed</p><nav><a href="/">Handshake setup</a><a href="/logs.html">Traffic logs</a><a href="/emsp.html">eMSP dashboard</a></nav></header>
+<main>
+<section class="card"><span class="badge" id="status">Checking connection…</span><h2 style="margin-bottom:6px">CPO workspace</h2><p class="muted">This page is shown when the simulator role is CPO and the credentials handshake succeeds.</p><div class="grid"><div class="stat"><div class="muted">Role</div><h2>CPO</h2></div><div class="stat"><div class="muted">Protocol version</div><h2>OCPI 2.2.1</h2></div><div class="stat"><div class="muted">Party</div><h2 id="party">—</h2></div></div></section>
+<section class="card"><h2>Handshake details</h2><pre id="details">Loading connection details…</pre></section>
+<section class="card"><h2>CPO actions</h2><p class="muted">The handshake is complete. The next CPO workflow is to configure at least one location/EVSE/connector and publish it through the partner's discovered Locations endpoint. Charger publishing is not wired into this page yet.</p><button onclick="location.href='/logs.html'">Inspect handshake requests and responses</button></section>
+</main>
+<script>
+(async()=>{try{const r=await fetch('/api/status');const s=await r.json();if(!r.ok)throw Error('Status request failed');if(s.status!=='CONNECTED'||s.role!=='CPO'){location.replace('/');return}document.getElementById('status').textContent='CONNECTED';document.getElementById('party').textContent=(s.countryCode||'')+' / '+(s.partyId||'');document.getElementById('details').textContent=JSON.stringify({status:s.status,role:s.role,version:s.version,countryCode:s.countryCode,partyId:s.partyId,businessName:s.businessName,partnerRoles:s.partnerRoles},null,2)}catch(e){document.getElementById('status').textContent='Unable to verify connection';document.getElementById('details').textContent=e.message}})();
+</script></body></html>

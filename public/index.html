@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCPI 2.2.1 Simulator</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, system-ui, Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f6fb; color: #172033; }
+    header { background: #14264d; color: white; padding: 22px max(20px, calc((100% - 1050px)/2)); }
+    header h1 { margin: 0 0 7px; font-size: 24px; }
+    header p { margin: 0; color: #d5def4; }
+    nav { margin-top: 15px; display: flex; gap: 16px; flex-wrap: wrap; }
+    nav a { color: white; }
+    main { max-width: 1050px; margin: 26px auto; padding: 0 18px; }
+    .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 22px; margin-bottom: 18px; box-shadow: 0 4px 16px #17203308; }
+    h2 { margin: 0 0 18px; font-size: 19px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+    label { display: block; font-size: 13px; font-weight: 650; margin-bottom: 7px; }
+    input, select { width: 100%; padding: 11px 12px; margin-bottom: 16px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; font: inherit; }
+    button { padding: 11px 16px; border: 0; border-radius: 7px; background: #2458d3; color: white; font-weight: 650; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .secondary { background: #e8edf6; color: #172033; }
+    .status { display: inline-block; border-radius: 999px; background: #e8edf6; padding: 7px 12px; font-weight: 700; }
+    #message { color: #475569; overflow-wrap: anywhere; }
+    .hint { font-size: 13px; color: #64748b; line-height: 1.5; }
+    @media(max-width: 650px) { .grid { grid-template-columns: 1fr; } header { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>OCPI Test Simulator</h1>
+    <p>Credentials handshake · OCPI 2.2.1</p>
+    <nav>
+      <a href="/">Simulator</a>
+      <a href="/logs.html">Request &amp; Response Logs</a>
+    </nav>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Simulator Configuration</h2>
+      <form id="handshakeForm">
+        <div class="grid">
+          <div>
+            <label for="role">Simulator role</label>
+            <select id="role">
+              <option value="EMSP">eMSP</option>
+              <option value="CPO">CPO</option>
+            </select>
+          </div>
+          <div>
+            <label for="businessName">Business name</label>
+            <input id="businessName" value="OCPI Test Simulator" required>
+          </div>
+          <div>
+            <label for="countryCode">Country code</label>
+            <input id="countryCode" value="IN" minlength="2" maxlength="2" pattern="[A-Z]{2}" required>
+          </div>
+          <div>
+            <label for="partyId">Party ID</label>
+            <input id="partyId" value="CZS" minlength="3" maxlength="3" pattern="[A-Z]{3}" required>
+          </div>
+        </div>
+        <label for="partnerUrl">Partner Versions URL</label>
+        <input id="partnerUrl" type="url" placeholder="https://partner.example.com/ocpi/versions" required>
+        <label for="token">Partner bootstrap token</label>
+        <input id="token" type="password" autocomplete="off" placeholder="Enter the partner-provided token" required>
+        <button id="connectButton" type="submit">Start Credentials Handshake</button>
+        <p class="hint">Use a sandbox partner. This page does not persist the entered token. Do not use production credentials for local testing.</p>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Connection Status</h2>
+      <p><span id="status" class="status">DISCONNECTED</span></p>
+      <p id="message">Ready to connect.</p>
+      <button class="secondary" type="button" id="refreshButton">Refresh Status</button>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById("handshakeForm");
+    const connectButton = document.getElementById("connectButton");
+    const statusEl = document.getElementById("status");
+    const messageEl = document.getElementById("message");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      connectButton.disabled = true;
+      statusEl.textContent = "CONNECTING";
+      messageEl.textContent = "Discovering partner versions and credentials endpoint…";
+
+      const payload = {
+        role: document.getElementById("role").value,
+        businessName: document.getElementById("businessName").value.trim(),
+        countryCode: document.getElementById("countryCode").value.trim(),
+        partyId: document.getElementById("partyId").value.trim(),
+        partnerVersionsUrl: document.getElementById("partnerUrl").value.trim(),
+        bootstrapToken: document.getElementById("token").value
+      };
+
+      try {
+        const response = await fetch("/api/handshake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        statusEl.textContent = result.status || (response.ok ? "UNKNOWN" : "ERROR");
+        messageEl.textContent = result.message || result.error || "No message returned.";
+      } catch (error) {
+        statusEl.textContent = "ERROR";
+        messageEl.textContent = error.message;
+      } finally {
+        connectButton.disabled = false;
+      }
+    });
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch("/api/status");
+        const result = await response.json();
+        statusEl.textContent = result.status || "UNKNOWN";
+        if (result.lastError && result.status === "ERROR") {
+          messageEl.textContent = result.lastError;
+        }
+      } catch (error) {
+        messageEl.textContent = "Could not reach the simulator: " + error.message;
+      }
+    }
+    document.getElementById("refreshButton").addEventListener("click", refreshStatus);
+  </script>
+</body>
+</html>

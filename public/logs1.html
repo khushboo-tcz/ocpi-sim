@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCPI Traffic Logs</title>
+  <style>
+    :root { font-family: Inter, system-ui, Arial, sans-serif; color: #172033; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f6fb; }
+    header { background: #14264d; color: white; padding: 22px max(20px, calc((100% - 1200px)/2)); }
+    header h1 { margin: 0 0 8px; font-size: 24px; }
+    header nav { display: flex; gap: 16px; flex-wrap: wrap; }
+    header a { color: white; }
+    main { max-width: 1200px; margin: 24px auto; padding: 0 18px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .stat, .panel, .entry { background: white; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .stat { padding: 18px; color: #64748b; font-size: 13px; }
+    .count { display: block; margin-top: 7px; font-size: 28px; font-weight: 750; color: #172033; }
+    .panel { padding: 16px; margin-bottom: 16px; }
+    select, button { font: inherit; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 7px; margin: 4px; }
+    button { cursor: pointer; background: #2458d3; color: white; border: 0; }
+    button.secondary { background: #e8edf6; color: #172033; }
+    .entry { padding: 15px; margin-bottom: 12px; border-left: 4px solid #64748b; }
+    .entry.REQUEST { border-left-color: #2563eb; }
+    .entry.RESPONSE { border-left-color: #16a34a; }
+    .entry.ERROR { border-left-color: #dc2626; }
+    .top { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+    .pill { font-size: 12px; font-weight: 750; border-radius: 999px; padding: 5px 9px; background: #e8edf6; }
+    .meta { margin: 9px 0; color: #475569; font-size: 13px; overflow-wrap: anywhere; }
+    details { margin-top: 10px; }
+    summary { cursor: pointer; font-weight: 650; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto; background: #0f172a; color: #d1fae5; border-radius: 7px; padding: 14px; font-size: 12px; }
+    .empty { color: #64748b; padding: 24px; text-align: center; }
+    @media(max-width: 700px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } header { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Request &amp; Response Logs</h1>
+    <nav>
+      <a href="/">← Back to Simulator</a>
+      <a href="/ocpi/versions" target="_blank" rel="noreferrer">Open Versions Endpoint</a>
+    </nav>
+  </header>
+  <main>
+    <section class="stats">
+      <div class="stat">Requests <span id="requests" class="count">0</span></div>
+      <div class="stat">Responses <span id="responses" class="count">0</span></div>
+      <div class="stat">Transport Errors <span id="errors" class="count">0</span></div>
+      <div class="stat">Retained Events <span id="retained" class="count">0</span></div>
+    </section>
+    <section class="panel">
+      <label for="filter">Filter events </label>
+      <select id="filter">
+        <option value="ALL">All events</option>
+        <option value="REQUEST">Requests</option>
+        <option value="RESPONSE">Responses</option>
+        <option value="ERROR">Transport errors</option>
+      </select>
+      <button id="refresh">Refresh now</button>
+      <button id="clear" class="secondary">Clear logs</button>
+      <span id="updated" class="meta">Loading…</span>
+      <p class="meta">Counts cover the retained in-memory events only (maximum 2,000). Sensitive token and authorization values are redacted.</p>
+    </section>
+    <section id="logList"></section>
+  </main>
+  <script>
+    const list = document.getElementById("logList");
+    const filter = document.getElementById("filter");
+
+    function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function renderEntry(entry) {
+      const card = element("article", "entry " + entry.type);
+      const top = element("div", "top");
+      top.append(
+        element("strong", "", `${entry.type} · ${entry.direction || "—"}`),
+        element("span", "pill", entry.httpStatus != null ? `HTTP ${entry.httpStatus}` : entry.type)
+      );
+
+      const detailsLine = [
+        entry.time,
+        entry.method,
+        entry.url,
+        entry.ocpiStatus != null ? `OCPI ${entry.ocpiStatus}` : null,
+        entry.durationMs != null ? `${entry.durationMs} ms` : null
+      ].filter(Boolean).join(" | ");
+
+      card.append(top, element("div", "meta", detailsLine));
+
+      const details = element("details");
+      details.append(element("summary", "", "View logged request/response details"));
+      const payload = {
+        requestId: entry.requestId,
+        headers: entry.headers,
+        body: entry.body,
+        error: entry.error
+      };
+      details.append(element("pre", "", JSON.stringify(payload, null, 2)));
+      card.append(details);
+      return card;
+    }
+
+    async function loadLogs() {
+      try {
+        const response = await fetch("/api/logs?type=" + encodeURIComponent(filter.value));
+        if (!response.ok) throw new Error("Could not load logs");
+        const data = await response.json();
+
+        document.getElementById("requests").textContent = data.totalRequests;
+        document.getElementById("responses").textContent = data.totalResponses;
+        document.getElementById("errors").textContent = data.totalErrors;
+        document.getElementById("retained").textContent = data.retainedEvents;
+        document.getElementById("updated").textContent =
+          "Updated " + new Date().toLocaleTimeString();
+
+        list.replaceChildren();
+        if (!data.logs.length) {
+          list.append(element("div", "panel empty", "No matching events yet."));
+          return;
+        }
+        data.logs.forEach(entry => list.append(renderEntry(entry)));
+      } catch (error) {
+        document.getElementById("updated").textContent = "Error: " + error.message;
+      }
+    }
+
+    async function clearLogs() {
+      if (!confirm("Clear all retained traffic logs?")) return;
+      const response = await fetch("/api/logs", { method: "DELETE" });
+      if (!response.ok) {
+        alert("Could not clear logs.");
+        return;
+      }
+      await loadLogs();
+    }
+
+    filter.addEventListener("change", loadLogs);
+    document.getElementById("refresh").addEventListener("click", loadLogs);
+    document.getElementById("clear").addEventListener("click", clearLogs);
+
+    loadLogs();
+    setInterval(loadLogs, 3000);
+  </script>
+</body>
+</html>

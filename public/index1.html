@@ -1,0 +1,207 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCPI 2.2.1 Simulator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      margin: 0;
+      color: #202938;
+    }
+    header {
+      background: #172554;
+      color: white;
+      padding: 22px 32px;
+    }
+    main {
+      max-width: 900px;
+      margin: 28px auto;
+      padding: 0 20px;
+    }
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px #0000000c;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 7px;
+    }
+    input, select {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 11px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    button {
+      padding: 12px 20px;
+      border: 0;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #0f172a;
+      color: #d1fae5;
+      padding: 16px;
+      border-radius: 8px;
+      min-height: 80px;
+    }
+    #status { font-weight: bold; }
+    @media(max-width: 600px) {
+      .grid { grid-template-columns: 1fr; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>OCPI Test Simulator</h2>
+    <div>Credentials Handshake · OCPI 2.2.1</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h3>Simulator Configuration</h3>
+      <div class="grid">
+        <div>
+          <label for="role">Simulator Role</label>
+          <select id="role">
+            <option value="EMSP">eMSP</option>
+            <option value="CPO">CPO</option>
+          </select>
+        </div>
+        <div>
+          <label for="partyId">Party ID</label>
+          <input id="partyId" value="CZS" maxlength="3" />
+        </div>
+        <div>
+          <label for="countryCode">Country Code</label>
+          <input id="countryCode" value="IN" maxlength="2" />
+        </div>
+        <div>
+          <label for="businessName">Business Name</label>
+          <input id="businessName" value="OCPI Test Simulator" />
+        </div>
+      </div>
+
+      <label for="partnerUrl">Partner Versions URL</label>
+      <input id="partnerUrl" placeholder="https://partner.example.com/ocpi/versions" />
+
+      <label for="token">Bootstrap Token</label>
+      <input id="token" type="password" placeholder="Enter partner token" />
+
+      <button id="connect" onclick="connectPartner()">
+        Start Credentials Handshake
+      </button>
+    </section>
+
+    <section class="card">
+      <h3>Connection Status</h3>
+      <p id="status">DISCONNECTED</p>
+      <p id="message">Ready to connect.</p>
+    </section>
+
+    <section class="card">
+      <h3>Handshake Logs</h3>
+      <pre id="logs">Waiting for handshake...</pre>
+      <button onclick="refreshStatus()">Refresh Status</button>
+    </section>
+  </main>
+
+  <script>
+    async function connectPartner() {
+      const button = document.getElementById("connect");
+      const status = document.getElementById("status");
+      const message = document.getElementById("message");
+      const logs = document.getElementById("logs");
+
+      const partnerVersionsUrl =
+        document.getElementById("partnerUrl").value.trim();
+      const bootstrapToken = document.getElementById("token").value;
+
+      if (!partnerVersionsUrl || !bootstrapToken) {
+        message.textContent = "Enter the partner URL and bootstrap token.";
+        return;
+      }
+
+      button.disabled = true;
+      status.textContent = "CONNECTING";
+      message.textContent = "Discovering partner OCPI endpoints...";
+      logs.textContent = "Handshake started...";
+
+      try {
+        const result = await fetch("/api/handshake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            partnerVersionsUrl,
+            bootstrapToken,
+            role: document.getElementById("role").value,
+            partyId: document.getElementById("partyId").value,
+            countryCode: document.getElementById("countryCode").value,
+            businessName: document.getElementById("businessName").value
+          })
+        });
+
+        const data = await result.json();
+
+        status.textContent = data.status || "ERROR";
+        message.textContent =
+          data.message || data.error || "Handshake failed.";
+
+        logs.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        status.textContent = "ERROR";
+        message.textContent = error.message;
+        logs.textContent = error.stack || error.message;
+      } finally {
+        button.disabled = false;
+      }
+
+      await refreshStatus();
+    }
+
+    async function refreshStatus() {
+      try {
+        const result = await fetch("/api/status");
+        const data = await result.json();
+
+        if (data.status) {
+          document.getElementById("status").textContent = data.status;
+        }
+
+        if (data.logs?.length) {
+          document.getElementById("logs").textContent =
+            data.logs.map(entry =>
+              `[${entry.time}] ${entry.message}\n` +
+              JSON.stringify(entry.details, null, 2)
+            ).join("\n\n");
+        }
+      } catch (error) {
+        console.error("Could not refresh status", error);
+      }
+    }
+
+    refreshStatus();
+  </script>
+</body>
+</html>
