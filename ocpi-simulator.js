@@ -1,13 +1,37 @@
+const crypto = require("node:crypto");
+if (typeof globalThis.crypto === "undefined" || !globalThis.crypto.randomUUID) {
+  globalThis.crypto = crypto;
+}
+if (typeof global.crypto === "undefined") {
+  global.crypto = crypto;
+}
+
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
-const crypto = require("crypto");
 const path = require("path");
+const mongoose = require("mongoose");
+
+const { connectDb, disconnectDb, getConnectionStatus } = require("./src/db/connection");
+const OcpiConnectionProfile = require("./src/models/OcpiConnectionProfile");
+const OcpiVersion = require("./src/models/OcpiVersion");
+const OcpiEndpoint = require("./src/models/OcpiEndpoint");
+const OcpiApiLog = require("./src/models/OcpiApiLog");
+const {
+  recordTransaction,
+  recordLog,
+  getMemoryLogs,
+  clearMemoryLogs,
+  safeHeaders,
+  redact,
+  detectModule,
+} = require("./src/services/logger");
 
 const app = express();
 const CONFIG = {
   port: Number(process.env.PORT || 3000),
   version: "2.2.1",
-  baseUrl: process.env.OCPI_BASE_URL || "http://localhost:3000",
+  baseUrl: (process.env.OCPI_BASE_URL || process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, ""),
   inboundBootstrapToken:
     process.env.OCPI_INBOUND_BOOTSTRAP_TOKEN || "replace-with-inbound-bootstrap-token",
   localToken: process.env.OCPI_LOCAL_TOKEN || crypto.randomBytes(32).toString("hex"),
@@ -31,9 +55,6 @@ const state = {
   lastError: null,
 };
 
-const trafficLogs = [];
-const MAX_TRAFFIC_LOGS = 2000;
-
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -41,32 +62,6 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/emsp", (req, res) => res.sendFile(path.join(__dirname, "public", "emsp.html")));
 app.get("/cpo", (req, res) => res.sendFile(path.join(__dirname, "public", "cpo.html")));
 app.get("/logs", (req, res) => res.sendFile(path.join(__dirname, "public", "logs.html")));
-
-function redact(value) {
-  if (Array.isArray(value)) return value.map(redact);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, val]) => [
-      key,
-      /authorization|token|secret|password/i.test(key) ? "[REDACTED]" : redact(val),
-    ]));
-  }
-  return value;
-}
-
-function safeHeaders(headers = {}) {
-  const result = {};
-  for (const [key, value] of Object.entries(headers)) {
-    result[key] = /authorization|token|secret|password/i.test(key) ? "[REDACTED]" : value;
-  }
-  return result;
-}
-
-function addTrafficLog(entry) {
-  trafficLogs.push({ id: crypto.randomUUID(), time: new Date().toISOString(), ...entry });
-  if (trafficLogs.length > MAX_TRAFFIC_LOGS) {
-    trafficLogs.splice(0, trafficLogs.length - MAX_TRAFFIC_LOGS);
-  }
-}
 
 function log(message, details = {}) {
   console.log({ time: new Date().toISOString(), message, details: redact(details) });
@@ -105,22 +100,28 @@ function unwrapOcpiResponse(result) {
   return body.data;
 }
 
-// Capture incoming OCPI requests and responses.
+// Capture incoming OCPI requests and responses as single unified transactions.
 app.use((req, res, next) => {
   if (!req.path.startsWith("/ocpi/")) return next();
 
-  const requestId = crypto.randomUUID();
+  const requestId = req.get("x-request-id") || crypto.randomUUID();
+  const correlationId = req.get("x-correlation-id") || crypto.randomUUID();
   const startedAt = Date.now();
   let responseBody;
 
-  addTrafficLog({
-    type: "REQUEST", direction: "INBOUND", requestId,
-    method: req.method, url: req.originalUrl,
-    headers: safeHeaders(req.headers), body: redact(req.body ?? null),
-  });
+  // Snapshot incoming request details
+  const reqSnapshot = {
+    method: req.method,
+    url: req.originalUrl,
+    headers: { ...req.headers },
+    body: req.body !== undefined ? req.body : null,
+  };
 
   const originalJson = res.json.bind(res);
-  res.json = (body) => { responseBody = body; return originalJson(body); };
+  res.json = (body) => {
+    responseBody = body;
+    return originalJson(body);
+  };
 
   const originalSend = res.send.bind(res);
   res.send = (body) => {
@@ -132,13 +133,43 @@ app.use((req, res, next) => {
     return originalSend(body);
   };
 
-  res.on("finish", () => addTrafficLog({
-    type: "RESPONSE", direction: "INBOUND", requestId,
-    method: req.method, url: req.originalUrl,
-    httpStatus: res.statusCode, ocpiStatus: responseBody?.status_code ?? null,
-    durationMs: Date.now() - startedAt,
-    headers: safeHeaders(res.getHeaders()), body: redact(responseBody ?? null),
-  }));
+  res.on("finish", () => {
+    const durationMs = Date.now() - startedAt;
+    const ocpiCode = (responseBody && typeof responseBody === "object" && typeof responseBody.status_code === "number")
+      ? responseBody.status_code
+      : null;
+    const ocpiMsg = (responseBody && typeof responseBody === "object" && typeof responseBody.status_message === "string")
+      ? responseBody.status_message
+      : null;
+
+    recordTransaction({
+      direction: "INBOUND",
+      simulatorRole: simulator.role,
+      module: detectModule(reqSnapshot.url),
+      requestId,
+      correlationId,
+      durationMs,
+      request: {
+        method: reqSnapshot.method,
+        url: reqSnapshot.url,
+        headers: reqSnapshot.headers,
+        body: reqSnapshot.body,
+      },
+      response: {
+        httpStatus: res.statusCode,
+        headers: res.getHeaders(),
+        body: responseBody ?? null,
+        ocpiStatusCode: ocpiCode,
+        ocpiStatusMessage: ocpiMsg,
+      },
+      error: res.statusCode >= 400 ? {
+        code: `HTTP_${res.statusCode}`,
+        message: ocpiMsg || `HTTP ${res.statusCode}`,
+      } : null,
+    }).catch((err) => {
+      console.error("[Logger] Inbound transaction logging error:", err.stack || err.message);
+    });
+  });
 
   next();
 });
@@ -147,49 +178,122 @@ function requestHeaders(token, correlationId) {
   return {
     Authorization: `Token ${token}`,
     "X-Request-ID": crypto.randomUUID(),
-    "X-Correlation-ID": correlationId,
+    "X-Correlation-ID": correlationId || crypto.randomUUID(),
     "Content-Type": "application/json",
   };
 }
 
 async function trackedRequest(method, url, config = {}, body) {
-  const requestId = crypto.randomUUID();
+  const requestId = config.headers?.["X-Request-ID"] || config.headers?.["x-request-id"] || crypto.randomUUID();
+  const correlationId = config.headers?.["X-Correlation-ID"] || config.headers?.["x-correlation-id"] || crypto.randomUUID();
   const startedAt = Date.now();
-
-  addTrafficLog({
-    type: "REQUEST", direction: "OUTBOUND", requestId, method, url,
-    headers: safeHeaders(config.headers || {}), body: redact(body ?? null),
-  });
+  const reqHeaders = { ...(config.headers || {}) };
+  const reqBody = body !== undefined ? body : null;
 
   try {
     const result = await axios({
-      ...config, method, url,
+      ...config,
+      method,
+      url,
       ...(body !== undefined ? { data: body } : {}),
     });
 
-    addTrafficLog({
-      type: "RESPONSE", direction: "OUTBOUND", requestId, method, url,
-      httpStatus: result.status, ocpiStatus: result.data?.status_code ?? null,
-      durationMs: Date.now() - startedAt,
-      headers: safeHeaders(result.headers), body: redact(result.data),
+    const durationMs = Date.now() - startedAt;
+    const resData = result.data;
+    const ocpiCode = (resData && typeof resData === "object" && typeof resData.status_code === "number")
+      ? resData.status_code
+      : null;
+    const ocpiMsg = (resData && typeof resData === "object" && typeof resData.status_message === "string")
+      ? resData.status_message
+      : null;
+
+    await recordTransaction({
+      direction: "OUTBOUND",
+      simulatorRole: simulator.role,
+      module: detectModule(url),
+      requestId,
+      correlationId,
+      durationMs,
+      request: {
+        method,
+        url,
+        headers: reqHeaders,
+        body: reqBody,
+      },
+      response: {
+        httpStatus: result.status,
+        headers: result.headers,
+        body: resData,
+        ocpiStatusCode: ocpiCode,
+        ocpiStatusMessage: ocpiMsg,
+      },
+      error: (ocpiCode && ocpiCode !== 1000) ? {
+        code: `OCPI_${ocpiCode}`,
+        message: ocpiMsg || `OCPI status ${ocpiCode}`,
+      } : null,
     });
+
     return result;
   } catch (error) {
+    const durationMs = Date.now() - startedAt;
+
     if (error.response) {
-      addTrafficLog({
-        type: "RESPONSE", direction: "OUTBOUND", requestId, method, url,
-        httpStatus: error.response.status,
-        ocpiStatus: error.response.data?.status_code ?? null,
-        durationMs: Date.now() - startedAt,
-        headers: safeHeaders(error.response.headers),
-        body: redact(error.response.data), error: error.message,
+      const resData = error.response.data;
+      const ocpiCode = (resData && typeof resData === "object" && typeof resData.status_code === "number")
+        ? resData.status_code
+        : null;
+      const ocpiMsg = (resData && typeof resData === "object" && typeof resData.status_message === "string")
+        ? resData.status_message
+        : null;
+
+      await recordTransaction({
+        direction: "OUTBOUND",
+        simulatorRole: simulator.role,
+        module: detectModule(url),
+        requestId,
+        correlationId,
+        durationMs,
+        request: {
+          method,
+          url,
+          headers: reqHeaders,
+          body: reqBody,
+        },
+        response: {
+          httpStatus: error.response.status,
+          headers: error.response.headers,
+          body: resData,
+          ocpiStatusCode: ocpiCode,
+          ocpiStatusMessage: ocpiMsg,
+        },
+        error: {
+          code: `HTTP_${error.response.status}`,
+          message: ocpiMsg || error.message,
+        },
       });
     } else {
-      addTrafficLog({
-        type: "ERROR", direction: "OUTBOUND", requestId, method, url,
-        durationMs: Date.now() - startedAt, error: error.message,
+      // Network failure, timeout, ECONNREFUSED, EPROTO, etc. (No HTTP response)
+      await recordTransaction({
+        direction: "OUTBOUND",
+        simulatorRole: simulator.role,
+        module: detectModule(url),
+        requestId,
+        correlationId,
+        durationMs,
+        request: {
+          method,
+          url,
+          headers: reqHeaders,
+          body: reqBody,
+        },
+        response: null,
+        error: {
+          code: error.code || "NETWORK_ERROR",
+          message: error.message,
+        },
       });
     }
+
     throw error;
   }
 }
@@ -217,8 +321,8 @@ app.post("/ocpi/2.2.1/credentials", (req, res) => {
 
   const credentials = req.body;
   if (!credentials || typeof credentials.token !== "string" || !credentials.token ||
-      typeof credentials.url !== "string" || !credentials.url ||
-      !Array.isArray(credentials.roles) || credentials.roles.length === 0) {
+    typeof credentials.url !== "string" || !credentials.url ||
+    !Array.isArray(credentials.roles) || credentials.roles.length === 0) {
     return res.status(200).json(ocpiResponse(null, 2001, "Invalid credentials payload"));
   }
 
@@ -304,8 +408,8 @@ app.post("/api/handshake", async (req, res) => {
 
     const remoteCredentials = unwrapOcpiResponse(registrationResult);
     if (!remoteCredentials || typeof remoteCredentials.token !== "string" || !remoteCredentials.token ||
-        typeof remoteCredentials.url !== "string" || !remoteCredentials.url ||
-        !Array.isArray(remoteCredentials.roles) || remoteCredentials.roles.length === 0) {
+      typeof remoteCredentials.url !== "string" || !remoteCredentials.url ||
+      !Array.isArray(remoteCredentials.roles) || remoteCredentials.roles.length === 0) {
       throw new Error("Partner returned invalid credentials.");
     }
 
@@ -320,6 +424,16 @@ app.post("/api/handshake", async (req, res) => {
     state.partnerLocationsUrl = locationsEndpoint?.url || null;
     state.status = "CONNECTED";
     state.lastError = null;
+
+    await persistHandshakeToDb({
+      role: simulator.role,
+      partnerRoles: remoteCredentials.roles,
+      remoteToken: remoteCredentials.token,
+      remoteVersionsUrl: remoteCredentials.url,
+      remoteCredentialsUrl: credentialsEndpoint.url,
+      endpoints,
+      partnerLocationsUrl: state.partnerLocationsUrl,
+    });
 
     log("Credentials exchange completed", {
       role: simulator.role,
@@ -343,6 +457,127 @@ app.post("/api/handshake", async (req, res) => {
     return res.status(502).json({ status: "ERROR", error: state.lastError });
   }
 });
+
+// Helper to persist handshake profile and discovered endpoints to MongoDB
+async function persistHandshakeToDb({ role, partnerRoles, remoteToken, remoteVersionsUrl, remoteCredentialsUrl, endpoints, partnerLocationsUrl }) {
+  try {
+    if (getConnectionStatus() === "CONNECTED") {
+      let profile = await OcpiConnectionProfile.findOne({ simulatorRole: role });
+      if (!profile) {
+        profile = new OcpiConnectionProfile({ simulatorRole: role });
+      }
+      profile.status = "CONNECTED";
+      profile.connectionMode = "HANDSHAKE";
+      profile.partnerRoles = partnerRoles;
+      profile.remoteToken = remoteToken;
+      profile.localToken = CONFIG.localToken;
+      profile.remoteVersionsUrl = remoteVersionsUrl;
+      profile.remoteCredentialsUrl = remoteCredentialsUrl;
+      profile.partnerLocationsUrl = partnerLocationsUrl;
+      profile.lastError = null;
+      profile.lastHandshakeAt = new Date();
+      await profile.save();
+
+      let versionDoc = await OcpiVersion.findOne({ profileId: profile._id, version: CONFIG.version });
+      if (!versionDoc) {
+        versionDoc = new OcpiVersion({
+          profileId: profile._id,
+          version: CONFIG.version,
+          versionsUrl: remoteVersionsUrl,
+          discoveryStatus: "DISCOVERED",
+          source: "DISCOVERED",
+          enabled: true,
+        });
+      } else {
+        versionDoc.versionsUrl = remoteVersionsUrl;
+        versionDoc.discoveryStatus = "DISCOVERED";
+      }
+      await versionDoc.save();
+
+      if (Array.isArray(endpoints)) {
+        for (const ep of endpoints) {
+          await OcpiEndpoint.findOneAndUpdate(
+            { profileId: profile._id, identifier: ep.identifier, role: ep.role },
+            {
+              profileId: profile._id,
+              versionId: versionDoc._id,
+              identifier: ep.identifier,
+              role: ep.role,
+              url: ep.url,
+              source: "DISCOVERED",
+              enabled: true,
+            },
+            { upsert: true, new: true }
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[MongoDB] Failed to persist handshake state:", err.message);
+  }
+}
+
+async function persistDirectLocationProfile({ role, endpoint, token }) {
+  try {
+    if (getConnectionStatus() === "CONNECTED") {
+      let profile = await OcpiConnectionProfile.findOne({ simulatorRole: role });
+      if (!profile) {
+        profile = new OcpiConnectionProfile({ simulatorRole: role });
+      }
+      profile.connectionMode = "DIRECT_BYPASS";
+      profile.partnerLocationsUrl = endpoint;
+      profile.remoteToken = token;
+      profile.status = "CONNECTED";
+      await profile.save();
+
+      await OcpiEndpoint.findOneAndUpdate(
+        { profileId: profile._id, identifier: "locations", role: "SENDER" },
+        {
+          profileId: profile._id,
+          identifier: "locations",
+          role: "SENDER",
+          url: endpoint,
+          source: "MANUAL",
+          enabled: true,
+        },
+        { upsert: true, new: true }
+      );
+    }
+  } catch (err) {
+    console.error("[MongoDB] Failed to persist direct location profile:", err.message);
+  }
+}
+
+async function restoreStateFromDb() {
+  try {
+    if (getConnectionStatus() === "CONNECTED") {
+      const profile = await OcpiConnectionProfile.findOne({ simulatorRole: simulator.role }).sort({ updatedAt: -1 });
+      if (profile) {
+        state.status = profile.status || "DISCONNECTED";
+        state.partnerRoles = profile.partnerRoles || [];
+        state.remoteToken = profile.remoteToken;
+        state.remoteVersionsUrl = profile.remoteVersionsUrl;
+        state.remoteCredentialsUrl = profile.remoteCredentialsUrl;
+        state.partnerLocationsUrl = profile.partnerLocationsUrl;
+        state.lastError = profile.lastError;
+
+        const endpoints = await OcpiEndpoint.find({ profileId: profile._id });
+        if (endpoints.length > 0) {
+          state.partnerEndpoints = endpoints.map((e) => ({
+            identifier: e.identifier,
+            role: e.role,
+            url: e.url,
+          }));
+        }
+        console.log(`[State] Restored connection state from MongoDB: status=${state.status}`);
+      } else {
+        console.log("[State] No existing profile found in MongoDB; initialized with clean default state.");
+      }
+    }
+  } catch (err) {
+    console.error("[State] Could not restore state from MongoDB:", err.stack || err.message);
+  }
+}
 
 // Direct Locations fetch: bypasses Versions, Version Details, and Credentials handshake.
 // Use only an endpoint and token supplied by the user for a trusted OCPI partner/sandbox.
@@ -379,7 +614,6 @@ app.post("/api/locations/direct", async (req, res) => {
       }
       locations = result.data.data;
     } else {
-      // Also allow a partner that returns the raw Locations array instead of an OCPI envelope.
       locations = result.data;
     }
     if (!Array.isArray(locations)) {
@@ -388,6 +622,13 @@ app.post("/api/locations/direct", async (req, res) => {
 
     state.partnerLocationsUrl = parsedUrl.toString();
     state.lastError = null;
+
+    await persistDirectLocationProfile({
+      role: simulator.role,
+      endpoint: parsedUrl.toString(),
+      token: token.trim(),
+    });
+
     return res.json({
       mode: "DIRECT_BYPASS",
       endpoint: parsedUrl.toString(),
@@ -423,9 +664,11 @@ app.get("/api/locations", async (req, res) => {
     });
     const locations = unwrapOcpiResponse(result);
     if (!Array.isArray(locations)) throw new Error("Partner returned an unexpected Locations response; expected an array.");
-    return res.json({ endpoint: state.partnerLocationsUrl, count: locations.length, locations, pagination: {
-      link: result.headers.link || null, xTotalCount: result.headers["x-total-count"] || null, xLimit: result.headers["x-limit"] || null,
-    }});
+    return res.json({
+      endpoint: state.partnerLocationsUrl, count: locations.length, locations, pagination: {
+        link: result.headers.link || null, xTotalCount: result.headers["x-total-count"] || null, xLimit: result.headers["x-limit"] || null,
+      }
+    });
   } catch (error) {
     const message = error.response?.data?.status_message || error.message || "Locations request failed";
     state.lastError = message;
@@ -445,36 +688,327 @@ app.get("/api/status", (req, res) => res.json({
   partnerLocationsUrl: state.partnerLocationsUrl,
   partnerEndpoints: state.partnerEndpoints.map(({ identifier, role, url }) => ({ identifier, role, url })),
   lastError: state.lastError,
+  database: {
+    status: getConnectionStatus(),
+    provider: "MongoDB",
+  },
 }));
 
-app.get("/api/logs", (req, res) => {
-  const filter = String(req.query.type || "ALL").toUpperCase();
-  if (!["ALL", "REQUEST", "RESPONSE", "ERROR"].includes(filter)) {
-    return res.status(400).json({ error: "Invalid log filter." });
+// MongoDB-backed + Memory-fallback Logs API
+app.get("/api/logs", async (req, res) => {
+  const filter = String(req.query.filter || req.query.type || "ALL").toUpperCase();
+  const moduleFilter = req.query.module ? String(req.query.module).toLowerCase() : null;
+  const roleFilter = req.query.role ? String(req.query.role).toUpperCase() : null;
+  const directionFilter = req.query.direction ? String(req.query.direction).toUpperCase() : null;
+  const statusFilter = req.query.status !== undefined ? Number(req.query.status) : null;
+  const searchQuery = req.query.search ? String(req.query.search).trim() : null;
+  const startDate = req.query.startDate || req.query.date_from ? new Date(req.query.startDate || req.query.date_from) : null;
+  const endDate = req.query.endDate || req.query.date_to ? new Date(req.query.endDate || req.query.date_to) : null;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 100));
+
+  try {
+    if (getConnectionStatus() === "CONNECTED") {
+      const query = {};
+
+      if (filter === "REQUEST") {
+        query.$or = [{ type: "REQUEST" }, { type: "TRANSACTION" }];
+      } else if (filter === "RESPONSE") {
+        query.$or = [{ type: "RESPONSE" }, { type: "TRANSACTION", response: { $ne: null } }];
+      } else if (filter === "ERROR") {
+        query.$or = [
+          { type: "ERROR" },
+          { "error.message": { $ne: null } },
+          { transportErrorMessage: { $ne: null } },
+          { transportErrorCode: { $ne: null } },
+        ];
+      } else if (filter === "SUCCESS") {
+        query.$or = [
+          { httpStatus: { $gte: 200, $lt: 300 } },
+          { "response.httpStatus": { $gte: 200, $lt: 300 } },
+        ];
+      } else if (filter === "HTTP_ERROR") {
+        query.$or = [
+          { httpStatus: { $gte: 400 } },
+          { ocpiStatusCode: { $gt: 1000 } },
+          { "response.httpStatus": { $gte: 400 } },
+          { "response.ocpiStatusCode": { $gt: 1000 } },
+        ];
+      } else if (filter === "TRANSPORT_ERROR") {
+        query.$or = [
+          { type: "ERROR" },
+          { transportErrorCode: { $ne: null } },
+          { "error.code": { $ne: null } },
+          { response: null, type: "TRANSACTION" },
+        ];
+      } else if (filter === "INBOUND") {
+        query.direction = "INBOUND";
+      } else if (filter === "OUTBOUND") {
+        query.direction = "OUTBOUND";
+      }
+
+      if (moduleFilter) query.module = moduleFilter;
+      if (roleFilter) query.simulatorRole = roleFilter;
+      if (directionFilter && !["INBOUND", "OUTBOUND"].includes(filter)) query.direction = directionFilter;
+      if (statusFilter !== null && !isNaN(statusFilter)) {
+        query.$or = [{ httpStatus: statusFilter }, { "response.httpStatus": statusFilter }];
+      }
+
+      if (startDate || endDate) {
+        query.timestamp = {};
+        if (startDate && !isNaN(startDate.getTime())) query.timestamp.$gte = startDate;
+        if (endDate && !isNaN(endDate.getTime())) query.timestamp.$lte = endDate;
+      }
+
+      if (searchQuery) {
+        query.$and = query.$and || [];
+        query.$and.push({
+          $or: [
+            { url: { $regex: searchQuery, $options: "i" } },
+            { "request.url": { $regex: searchQuery, $options: "i" } },
+            { requestId: { $regex: searchQuery, $options: "i" } },
+            { correlationId: { $regex: searchQuery, $options: "i" } },
+            { transportErrorMessage: { $regex: searchQuery, $options: "i" } },
+            { "error.message": { $regex: searchQuery, $options: "i" } },
+            { ocpiStatusMessage: { $regex: searchQuery, $options: "i" } },
+            { "response.ocpiStatusMessage": { $regex: searchQuery, $options: "i" } },
+          ],
+        });
+      }
+
+      const totalDocuments = await OcpiApiLog.countDocuments(query);
+      const totalTransactions = await OcpiApiLog.countDocuments({ type: "TRANSACTION" });
+      const legacyRequests = await OcpiApiLog.countDocuments({ type: "REQUEST" });
+      const legacyResponses = await OcpiApiLog.countDocuments({ type: "RESPONSE" });
+      const totalRequests = totalTransactions + legacyRequests;
+      const totalResponses = totalTransactions + legacyResponses;
+      const totalErrors = await OcpiApiLog.countDocuments({
+        $or: [
+          { type: "ERROR" },
+          { "error.message": { $ne: null } },
+          { transportErrorMessage: { $ne: null } },
+          { transportErrorCode: { $ne: null } },
+          { httpStatus: { $gte: 400 } },
+          { "response.httpStatus": { $gte: 400 } },
+        ],
+      });
+
+      const docs = await OcpiApiLog.find(query)
+        .sort({ timestamp: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
+
+      function formatLogDoc(doc) {
+        const reqObj = doc.request || {
+          method: doc.method,
+          url: doc.url,
+          headers: doc.requestHeaders || {},
+          body: doc.requestBody ?? null,
+        };
+        const resObj = doc.response !== undefined ? doc.response : (doc.httpStatus != null || doc.responseBody != null ? {
+          httpStatus: doc.httpStatus,
+          headers: doc.responseHeaders || {},
+          body: doc.responseBody ?? null,
+          ocpiStatusCode: doc.ocpiStatusCode,
+          ocpiStatusMessage: doc.ocpiStatusMessage,
+        } : null);
+        const errObj = doc.error || (doc.transportErrorMessage || doc.transportErrorCode ? {
+          code: doc.transportErrorCode,
+          message: doc.transportErrorMessage,
+        } : null);
+
+        return {
+          id: doc._id ? doc._id.toString() : doc.id,
+          time: doc.timestamp ? (doc.timestamp.toISOString ? doc.timestamp.toISOString() : doc.timestamp) : new Date().toISOString(),
+          type: doc.type || "TRANSACTION",
+          direction: doc.direction,
+          method: reqObj.method || doc.method,
+          url: reqObj.url || doc.url,
+          httpStatus: resObj ? resObj.httpStatus : doc.httpStatus ?? null,
+          ocpiStatus: resObj ? (resObj.ocpiStatusCode ?? resObj.ocpiStatus) : (doc.ocpiStatusCode ?? null),
+          ocpiStatusMessage: resObj ? (resObj.ocpiStatusMessage ?? null) : (doc.ocpiStatusMessage ?? null),
+          durationMs: doc.durationMs,
+          requestId: doc.requestId,
+          correlationId: doc.correlationId,
+          module: doc.module,
+          request: reqObj,
+          response: resObj,
+          error: errObj,
+          headers: reqObj.headers || doc.requestHeaders || {},
+          body: reqObj.body !== undefined ? reqObj.body : (doc.requestBody ?? null),
+          responseHeaders: resObj ? (resObj.headers || {}) : (doc.responseHeaders || {}),
+          responseBody: resObj ? (resObj.body ?? null) : (doc.responseBody ?? null),
+          transportErrorCode: errObj ? errObj.code : doc.transportErrorCode,
+          transportErrorMessage: errObj ? errObj.message : doc.transportErrorMessage,
+          simulatorRole: doc.simulatorRole,
+        };
+      }
+
+      const logs = docs.map(formatLogDoc);
+
+      return res.json({
+        totalRequests,
+        totalResponses,
+        totalErrors,
+        retainedEvents: totalDocuments,
+        page,
+        limit,
+        totalPages: Math.ceil(totalDocuments / limit) || 1,
+        source: "MONGODB",
+        logs,
+      });
+    }
+
+    // Memory fallback if MongoDB is not connected
+    const memoryLogs = getMemoryLogs();
+    const filtered = memoryLogs.filter((entry) => {
+      const isTx = entry.type === "TRANSACTION" || Boolean(entry.request);
+      const http = entry.response ? entry.response.httpStatus : entry.httpStatus;
+      const ocpi = entry.response ? entry.response.ocpiStatusCode : entry.ocpiStatus;
+      const err = entry.error || entry.transportErrorMessage || entry.transportErrorCode;
+
+      if (filter === "REQUEST" && !isTx && entry.type !== "REQUEST") return false;
+      if (filter === "RESPONSE" && !isTx && entry.type !== "RESPONSE") return false;
+      if (filter === "ERROR" && !err && entry.type !== "ERROR") return false;
+      if (filter === "INBOUND" && entry.direction !== "INBOUND") return false;
+      if (filter === "OUTBOUND" && entry.direction !== "OUTBOUND") return false;
+      if (filter === "SUCCESS" && (http == null || http < 200 || http >= 300)) return false;
+      if (filter === "HTTP_ERROR" && !((http != null && http >= 400) || (ocpi != null && ocpi !== 1000))) return false;
+      if (filter === "TRANSPORT_ERROR" && !(entry.type === "ERROR" || Boolean(err) || (isTx && entry.response === null))) return false;
+      if (moduleFilter && entry.module !== moduleFilter) return false;
+      if (roleFilter && entry.simulatorRole !== roleFilter) return false;
+      if (searchQuery) {
+        const str = JSON.stringify(entry).toLowerCase();
+        if (!str.includes(searchQuery.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    return res.json({
+      totalRequests: memoryLogs.filter((e) => e.type === "TRANSACTION" || e.type === "REQUEST").length,
+      totalResponses: memoryLogs.filter((e) => (e.type === "TRANSACTION" && e.response !== null) || e.type === "RESPONSE").length,
+      totalErrors: memoryLogs.filter((e) => e.type === "ERROR" || (e.error && e.error.message) || (e.response && e.response.httpStatus >= 400) || e.httpStatus >= 400).length,
+      retainedEvents: memoryLogs.length,
+      page,
+      limit,
+      totalPages: Math.ceil(filtered.length / limit) || 1,
+      source: "MEMORY",
+      logs: filtered.slice().reverse().slice((page - 1) * limit, page * limit),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to retrieve logs: " + err.message });
   }
-  const filtered = trafficLogs.filter((entry) => filter === "ALL" || entry.type === filter);
-  return res.json({
-    totalRequests: trafficLogs.filter((entry) => entry.type === "REQUEST").length,
-    totalResponses: trafficLogs.filter((entry) => entry.type === "RESPONSE").length,
-    totalErrors: trafficLogs.filter((entry) => entry.type === "ERROR").length,
-    retainedEvents: trafficLogs.length,
-    maxEvents: MAX_TRAFFIC_LOGS,
-    logs: filtered.slice().reverse(),
+});
+
+// Retrieve single transaction log by ID
+app.get("/api/logs/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ error: "Log ID is required." });
+
+  try {
+    if (getConnectionStatus() === "CONNECTED" && mongoose.Types.ObjectId.isValid(id)) {
+      const doc = await OcpiApiLog.findById(id).lean();
+      if (doc) {
+        const reqObj = doc.request || {
+          method: doc.method,
+          url: doc.url,
+          headers: doc.requestHeaders || {},
+          body: doc.requestBody ?? null,
+        };
+        const resObj = doc.response !== undefined ? doc.response : (doc.httpStatus != null || doc.responseBody != null ? {
+          httpStatus: doc.httpStatus,
+          headers: doc.responseHeaders || {},
+          body: doc.responseBody ?? null,
+          ocpiStatusCode: doc.ocpiStatusCode,
+          ocpiStatusMessage: doc.ocpiStatusMessage,
+        } : null);
+        const errObj = doc.error || (doc.transportErrorMessage || doc.transportErrorCode ? {
+          code: doc.transportErrorCode,
+          message: doc.transportErrorMessage,
+        } : null);
+
+        return res.json({
+          id: doc._id.toString(),
+          time: doc.timestamp ? doc.timestamp.toISOString() : new Date().toISOString(),
+          type: doc.type || "TRANSACTION",
+          direction: doc.direction,
+          method: reqObj.method || doc.method,
+          url: reqObj.url || doc.url,
+          httpStatus: resObj ? resObj.httpStatus : doc.httpStatus ?? null,
+          ocpiStatus: resObj ? (resObj.ocpiStatusCode ?? resObj.ocpiStatus) : (doc.ocpiStatusCode ?? null),
+          ocpiStatusMessage: resObj ? (resObj.ocpiStatusMessage ?? null) : (doc.ocpiStatusMessage ?? null),
+          durationMs: doc.durationMs,
+          requestId: doc.requestId,
+          correlationId: doc.correlationId,
+          module: doc.module,
+          request: reqObj,
+          response: resObj,
+          error: errObj,
+          headers: reqObj.headers || doc.requestHeaders || {},
+          body: reqObj.body !== undefined ? reqObj.body : (doc.requestBody ?? null),
+          responseHeaders: resObj ? (resObj.headers || {}) : (doc.responseHeaders || {}),
+          responseBody: resObj ? (resObj.body ?? null) : (doc.responseBody ?? null),
+          transportErrorCode: errObj ? errObj.code : doc.transportErrorCode,
+          transportErrorMessage: errObj ? errObj.message : doc.transportErrorMessage,
+          simulatorRole: doc.simulatorRole,
+        });
+      }
+    }
+
+    const memLog = getMemoryLogs().find((l) => l.id === id || l.requestId === id);
+    if (memLog) return res.json(memLog);
+
+    return res.status(404).json({ error: "Log record not found." });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/logs", async (req, res) => {
+  clearMemoryLogs();
+  try {
+    if (getConnectionStatus() === "CONNECTED") {
+      await OcpiApiLog.deleteMany({});
+    }
+    return res.json({ message: "Traffic logs cleared." });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to clear logs: " + err.message });
+  }
+});
+
+let serverInstance = null;
+
+async function startServer() {
+  await connectDb();
+  await restoreStateFromDb();
+
+  return new Promise((resolve) => {
+    serverInstance = app.listen(CONFIG.port, () => {
+      console.log("---------------------------------------");
+      console.log("OCPI 2.2.1 Test Simulator (MongoDB Enabled)");
+      console.log(`Database:  ${getConnectionStatus()}`);
+      console.log(`Handshake: ${CONFIG.baseUrl}/`);
+      console.log(`eMSP page: ${CONFIG.baseUrl}/emsp.html`);
+      console.log(`CPO page:  ${CONFIG.baseUrl}/cpo.html`);
+      console.log(`Logs:      ${CONFIG.baseUrl}/logs.html`);
+      console.log(`Versions:  ${CONFIG.baseUrl}/ocpi/versions`);
+      console.log("---------------------------------------");
+      resolve(serverInstance);
+    });
   });
-});
+}
 
-app.delete("/api/logs", (req, res) => {
-  trafficLogs.length = 0;
-  return res.json({ message: "Traffic logs cleared." });
-});
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error("Failed to start OCPI simulator server:", err);
+  });
+}
 
-app.listen(CONFIG.port, () => {
-  console.log("---------------------------------------");
-  console.log("OCPI 2.2.1 Test Simulator");
-  console.log(`Handshake: http://localhost:${CONFIG.port}/`);
-  console.log(`eMSP page: http://localhost:${CONFIG.port}/emsp.html`);
-  console.log(`CPO page:  http://localhost:${CONFIG.port}/cpo.html`);
-  console.log(`Logs:      http://localhost:${CONFIG.port}/logs.html`);
-  console.log(`Versions:  ${CONFIG.baseUrl}/ocpi/versions`);
-  console.log("---------------------------------------");
-});
+module.exports = {
+  app,
+  startServer,
+  CONFIG,
+  simulator,
+  state,
+};

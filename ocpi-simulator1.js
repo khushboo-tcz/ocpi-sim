@@ -7,7 +7,7 @@ const app = express();
 const CONFIG = {
   port: Number(process.env.PORT || 3000),
   version: "2.2.1",
-  baseUrl: process.env.OCPI_BASE_URL || "http://localhost:3000",
+  baseUrl: (process.env.OCPI_BASE_URL || process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, ""),
   inboundBootstrapToken:
     process.env.OCPI_INBOUND_BOOTSTRAP_TOKEN || "replace-with-inbound-bootstrap-token",
   localToken: process.env.OCPI_LOCAL_TOKEN || crypto.randomBytes(32).toString("hex"),
@@ -471,10 +471,10 @@ app.delete("/api/logs", (req, res) => {
 app.listen(CONFIG.port, () => {
   console.log("---------------------------------------");
   console.log("OCPI 2.2.1 Test Simulator");
-  console.log(`Handshake: http://localhost:${CONFIG.port}/`);
-  console.log(`eMSP page: http://localhost:${CONFIG.port}/emsp.html`);
-  console.log(`CPO page:  http://localhost:${CONFIG.port}/cpo.html`);
-  console.log(`Logs:      http://localhost:${CONFIG.port}/logs.html`);
+  console.log(`Handshake: ${CONFIG.baseUrl}/`);
+  console.log(`eMSP page: ${CONFIG.baseUrl}/emsp.html`);
+  console.log(`CPO page:  ${CONFIG.baseUrl}/cpo.html`);
+  console.log(`Logs:      ${CONFIG.baseUrl}/logs.html`);
   console.log(`Versions:  ${CONFIG.baseUrl}/ocpi/versions`);
   console.log("---------------------------------------");
 });

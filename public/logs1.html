@@ -33,6 +33,20 @@
     pre { white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: auto; background: #0f172a; color: #d1fae5; border-radius: 7px; padding: 14px; font-size: 12px; }
     .empty { color: #64748b; padding: 24px; text-align: center; }
     @media(max-width: 700px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } header { padding: 20px; } }
+    dialog.confirm-modal { border: none; border-radius: 14px; padding: 0; background: transparent; max-width: 460px; width: calc(100% - 36px); box-shadow: 0 25px 50px -12px rgba(15,23,42,.35), 0 0 0 1px rgba(15,23,42,.08); }
+    dialog.confirm-modal::backdrop { background: rgba(15,23,42,.65); backdrop-filter: blur(4px); }
+    .modal-card { background: #fff; border-radius: 14px; padding: 22px 24px; }
+    .modal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .modal-icon { width: 44px; height: 44px; border-radius: 10px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .modal-title { font-size: 17px; font-weight: 750; color: #0f172a; margin: 0; }
+    .modal-subtitle { font-size: 12px; color: #64748b; margin: 2px 0 0; }
+    .modal-body { font-size: 13px; line-height: 1.55; color: #334155; margin-bottom: 20px; }
+    .modal-body p { margin: 0 0 10px; }
+    .modal-warning-box { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 9px 12px; border-radius: 7px; font-size: 12px; line-height: 1.45; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    button.danger { background: #dc2626; color: #fff; }
+    button.danger:hover { background: #b91c1c; }
+    button.danger:disabled { opacity: .6; cursor: wait; }
   </style>
 </head>
 <body>
@@ -64,6 +78,35 @@
       <p class="meta">Counts cover the retained in-memory events only (maximum 2,000). Sensitive token and authorization values are redacted.</p>
     </section>
     <section id="logList"></section>
+    <dialog id="confirmModal" class="confirm-modal" aria-labelledby="modalTitle" aria-describedby="modalDesc">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 id="modalTitle" class="modal-title">Clear All Traffic Logs?</h3>
+            <p class="modal-subtitle">Permanent deletion confirmation</p>
+          </div>
+        </div>
+        <div class="modal-body" id="modalDesc">
+          <p>Are you sure you want to delete all retained OCPI request and response logs?</p>
+          <div class="modal-warning-box">
+            <strong>Warning:</strong> This will permanently erase all traffic logs from MongoDB and in-memory cache. This action cannot be undone.
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelClearBtn" class="secondary">Cancel</button>
+          <button type="button" id="confirmClearBtn" class="danger">Yes, clear logs</button>
+        </div>
+      </div>
+    </dialog>
   </main>
   <script>
     const list = document.getElementById("logList");
@@ -131,19 +174,65 @@
       }
     }
 
-    async function clearLogs() {
-      if (!confirm("Clear all retained traffic logs?")) return;
-      const response = await fetch("/api/logs", { method: "DELETE" });
-      if (!response.ok) {
-        alert("Could not clear logs.");
-        return;
+    const confirmModal = document.getElementById("confirmModal");
+    const cancelClearBtn = document.getElementById("cancelClearBtn");
+    const confirmClearBtn = document.getElementById("confirmClearBtn");
+
+    function openClearModal() {
+      if (confirmModal && typeof confirmModal.showModal === "function") {
+        confirmModal.showModal();
+        cancelClearBtn.focus();
+      } else if (confirm("Are you sure you want to clear all retained traffic logs? This action cannot be undone.")) {
+        executeClearLogs();
       }
-      await loadLogs();
+    }
+
+    function closeClearModal() {
+      if (confirmModal && typeof confirmModal.close === "function" && confirmModal.open) {
+        confirmModal.close();
+      }
+    }
+
+    if (confirmModal) {
+      confirmModal.addEventListener("click", (e) => {
+        const rect = confirmModal.getBoundingClientRect();
+        const inDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+        if (!inDialog) closeClearModal();
+      });
+    }
+    if (cancelClearBtn) {
+      cancelClearBtn.addEventListener("click", closeClearModal);
+    }
+
+    async function executeClearLogs() {
+      if (confirmClearBtn) {
+        confirmClearBtn.disabled = true;
+        confirmClearBtn.textContent = "Clearing…";
+      }
+      try {
+        const response = await fetch("/api/logs", { method: "DELETE" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        closeClearModal();
+        await loadLogs();
+        const updated = document.getElementById("updated");
+        if (updated) updated.textContent = "Logs cleared successfully.";
+      } catch (error) {
+        alert("Could not clear logs: " + error.message);
+      } finally {
+        if (confirmClearBtn) {
+          confirmClearBtn.disabled = false;
+          confirmClearBtn.textContent = "Yes, clear logs";
+        }
+      }
+    }
+
+    if (confirmClearBtn) {
+      confirmClearBtn.addEventListener("click", executeClearLogs);
     }
 
     filter.addEventListener("change", loadLogs);
     document.getElementById("refresh").addEventListener("click", loadLogs);
-    document.getElementById("clear").addEventListener("click", clearLogs);
+    document.getElementById("clear").addEventListener("click", openClearModal);
 
     loadLogs();
     setInterval(loadLogs, 3000);

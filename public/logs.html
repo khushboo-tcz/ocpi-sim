@@ -1,48 +1,1031 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OCPI Request & Response Monitor</title>
-<style>
-:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f3f6fb}*{box-sizing:border-box}body{margin:0}header{background:#14264d;color:#fff;padding:22px max(18px,calc((100% - 1450px)/2))}h1{font-size:24px;margin:0 0 7px}header p{margin:0;color:#dbe5fb}nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:13px}nav a{color:#fff}main{max-width:1450px;margin:22px auto;padding:0 18px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.stat,.panel{background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:16px}.stat{color:#64748b;font-size:13px}.count{display:block;color:#172033;font-size:27px;font-weight:750;margin-top:6px}.toolbar{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(150px,.7fr) auto auto;gap:10px;align-items:end}.field label{display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px}.field input,.field select{width:100%;padding:10px 11px;border:1px solid #cbd5e1;border-radius:7px;background:white;font:inherit}button{padding:10px 13px;border:0;border-radius:7px;background:#2458d3;color:white;font:inherit;font-weight:650;cursor:pointer}button.secondary{background:#e8edf6;color:#172033}.hint{font-size:12px;line-height:1.5;color:#64748b;margin:12px 0 0}.statusline{font-size:12px;color:#64748b;margin-top:10px}.table-wrap{overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:11px;margin-top:16px}table{width:100%;min-width:1100px;border-collapse:collapse}th,td{text-align:left;vertical-align:top;padding:11px 12px;border-bottom:1px solid #e8edf4;font-size:13px}th{position:sticky;top:0;background:#f8fafc;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.04em;z-index:1}tbody tr:hover{background:#f8fafc}.endpoint{max-width:320px;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.muted{color:#64748b}.badge{display:inline-block;padding:4px 7px;border-radius:999px;font-size:11px;font-weight:750;white-space:nowrap}.ok{background:#dcfce7;color:#166534}.bad{background:#fee2e2;color:#991b1b}.warn{background:#fef3c7;color:#92400e}.neutral{background:#e2e8f0;color:#334155}.details-row td{background:#f8fafc;padding:14px}.details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.detail-box{min-width:0;border:1px solid #dbe3ef;border-radius:8px;background:#fff;padding:12px}.detail-box h3{font-size:13px;margin:0 0 9px}.detail-box h4{font-size:11px;text-transform:uppercase;color:#64748b;margin:12px 0 5px}.detail-box h4:first-of-type{margin-top:0}pre{margin:0;padding:11px;background:#0f172a;color:#d1fae5;border-radius:7px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto;font-size:11px;line-height:1.5}.error-text{color:#b91c1c;overflow-wrap:anywhere;font-weight:650}.small-btn{padding:6px 9px;font-size:12px}.empty{text-align:center;padding:30px;color:#64748b}.count-cell{white-space:nowrap}.id-cell{max-width:180px;overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:11px}.method{font-weight:800}.footer-note{font-size:12px;color:#64748b;margin:12px 2px}@media(max-width:850px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.toolbar{grid-template-columns:1fr 1fr}.details-grid{grid-template-columns:1fr}header{padding:20px}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OCPI Request &amp; Response Monitor</title>
+  <style>
+    :root {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f3f6fb
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0
+    }
+
+    header {
+      background: #14264d;
+      color: #fff;
+      padding: 22px max(18px, calc((100% - 1450px)/2))
+    }
+
+    h1 {
+      font-size: 24px;
+      margin: 0 0 7px
+    }
+
+    header p {
+      margin: 0;
+      color: #dbe5fb
+    }
+
+    nav {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 13px
+    }
+
+    nav a {
+      color: #fff
+    }
+
+    main {
+      max-width: 1450px;
+      margin: 22px auto;
+      padding: 0 18px
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px
+    }
+
+    .stat,
+    .panel {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 11px;
+      padding: 16px
+    }
+
+    .stat {
+      color: #64748b;
+      font-size: 13px
+    }
+
+    .count {
+      display: block;
+      color: #172033;
+      font-size: 27px;
+      font-weight: 750;
+      margin-top: 6px
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.4fr) minmax(130px, .8fr) minmax(120px, .7fr) auto auto;
+      gap: 10px;
+      align-items: end
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 5px
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 10px 11px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: white;
+      font: inherit
+    }
+
+    button {
+      padding: 10px 13px;
+      border: 0;
+      border-radius: 7px;
+      background: #2458d3;
+      color: white;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer
+    }
+
+    button.secondary {
+      background: #e8edf6;
+      color: #172033
+    }
+
+    .hint {
+      font-size: 12px;
+      line-height: 1.5;
+      color: #64748b;
+      margin: 12px 0 0
+    }
+
+    .statusline {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 10px
+    }
+
+    .table-wrap {
+      overflow: auto;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 11px;
+      margin-top: 16px
+    }
+
+    table {
+      width: 100%;
+      min-width: 1100px;
+      border-collapse: collapse
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 11px 12px;
+      border-bottom: 1px solid #e8edf4;
+      font-size: 13px
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      z-index: 1
+    }
+
+    tbody tr:hover {
+      background: #f8fafc
+    }
+
+    .endpoint {
+      max-width: 320px;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px
+    }
+
+    .muted {
+      color: #64748b
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap
+    }
+
+    .ok {
+      background: #dcfce7;
+      color: #166534
+    }
+
+    .bad {
+      background: #fee2e2;
+      color: #991b1b
+    }
+
+    .warn {
+      background: #fef3c7;
+      color: #92400e
+    }
+
+    .neutral {
+      background: #e2e8f0;
+      color: #334155
+    }
+
+    .details-row td {
+      background: #f8fafc;
+      padding: 14px
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px
+    }
+
+    .detail-box {
+      min-width: 0;
+      border: 1px solid #dbe3ef;
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px
+    }
+
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 6px
+    }
+
+    .detail-header h3 {
+      font-size: 13px;
+      margin: 0;
+      font-weight: 700
+    }
+
+    .detail-badges {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap
+    }
+
+    .endpoint-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f1f5f9;
+      padding: 7px 10px;
+      border-radius: 6px;
+      margin: 8px 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+      word-break: break-all
+    }
+
+    .method-tag {
+      font-weight: 800;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: #fff;
+      flex-shrink: 0
+    }
+
+    .url-text {
+      color: #0f172a
+    }
+
+    .error-alert {
+      background: #fee2e2;
+      border: 1px solid #f87171;
+      color: #991b1b;
+      padding: 9px 12px;
+      border-radius: 6px;
+      margin: 8px 0;
+      font-size: 12px;
+      overflow-wrap: anywhere
+    }
+
+    .detail-box h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #64748b;
+      margin: 12px 0 5px
+    }
+
+    .detail-box h4:first-of-type {
+      margin-top: 8px
+    }
+
+    pre {
+      margin: 0;
+      padding: 11px;
+      background: #0f172a;
+      color: #d1fae5;
+      border-radius: 7px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      max-height: 330px;
+      overflow: auto;
+      font-size: 11px;
+      line-height: 1.5
+    }
+
+    .meta-strip {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: #64748b
+    }
+
+    .meta-item {
+      display: inline-flex;
+      gap: 4px
+    }
+
+    .meta-label {
+      font-weight: 700;
+      color: #475569
+    }
+
+    .error-text {
+      color: #b91c1c;
+      overflow-wrap: anywhere;
+      font-weight: 650
+    }
+
+    .small-btn {
+      padding: 6px 9px;
+      font-size: 12px
+    }
+
+    .empty {
+      text-align: center;
+      padding: 30px;
+      color: #64748b
+    }
+
+    .count-cell {
+      white-space: nowrap
+    }
+
+    .id-cell {
+      max-width: 180px;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, monospace;
+      font-size: 11px
+    }
+
+    .method {
+      font-weight: 800
+    }
+
+    .footer-note {
+      font-size: 12px;
+      color: #64748b;
+      margin: 12px 2px
+    }
+
+    @media(max-width:850px) {
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr))
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .details-grid {
+        grid-template-columns: 1fr
+      }
+
+      header {
+        padding: 20px
+      }
+    }
+
+    dialog.confirm-modal {
+      border: none;
+      border-radius: 14px;
+      padding: 0;
+      background: transparent;
+      max-width: 460px;
+      width: calc(100% - 36px);
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, .35), 0 0 0 1px rgba(15, 23, 42, .08)
+    }
+
+    dialog.confirm-modal::backdrop {
+      background: rgba(15, 23, 42, .65);
+      backdrop-filter: blur(4px);
+      animation: fadeIn .15s ease-out
+    }
+
+    .modal-card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 22px 24px;
+      animation: popIn .15s ease-out
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0
+      }
+
+      to {
+        opacity: 1
+      }
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: scale(.96) translateY(6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0)
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px
+    }
+
+    .modal-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: #fee2e2;
+      color: #dc2626;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 750;
+      color: #0f172a;
+      margin: 0
+    }
+
+    .modal-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin: 2px 0 0
+    }
+
+    .modal-body {
+      font-size: 13px;
+      line-height: 1.55;
+      color: #334155;
+      margin-bottom: 20px
+    }
+
+    .modal-body p {
+      margin: 0 0 10px
+    }
+
+    .modal-warning-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+      padding: 9px 12px;
+      border-radius: 7px;
+      font-size: 12px;
+      line-height: 1.45
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px
+    }
+
+    button.danger {
+      background: #dc2626;
+      color: #fff;
+      transition: background .15s ease
+    }
+
+    button.danger:hover {
+      background: #b91c1c
+    }
+
+    button.danger:disabled {
+      opacity: .6;
+      cursor: wait
+    }
+
+    button:focus-visible {
+      outline: 2px solid #2458d3;
+      outline-offset: 2px
+    }
+  </style>
 </head>
+
 <body>
-<header><h1>OCPI Request &amp; Response Monitor</h1><p>Transactions are grouped into one table row, with request and response payloads available in Details.</p><nav><a href="/">← eMSP Simulator</a><a href="/handshake">Handshake page</a><a href="/ocpi/versions" target="_blank" rel="noreferrer">Open local Versions endpoint</a></nav></header>
-<main>
-<section class="stats">
- <div class="stat">Requests<span id="requests" class="count">0</span></div>
- <div class="stat">Responses<span id="responses" class="count">0</span></div>
- <div class="stat">Errors<span id="errors" class="count">0</span></div>
- <div class="stat">Transactions<span id="transactions" class="count">0</span></div>
-</section>
-<section class="panel">
- <div class="toolbar">
-  <div class="field"><label for="search">Search endpoint, error, status, or request ID</label><input id="search" type="search" placeholder="e.g. locations, EPROTO, 401"></div>
-  <div class="field"><label for="filter">Show</label><select id="filter"><option value="ALL">All transactions</option><option value="SUCCESS">Successful</option><option value="HTTP_ERROR">HTTP / OCPI errors</option><option value="TRANSPORT_ERROR">Connection / transport errors</option><option value="INBOUND">Inbound traffic</option><option value="OUTBOUND">Outbound traffic</option></select></div>
-  <button id="refresh">Refresh now</button><button id="clear" class="secondary">Clear logs</button>
- </div>
- <div id="updated" class="statusline">Loading logs…</div>
- <p class="hint">Authorization and token values are redacted. Request and response headers/bodies are shown in Details. Logs are held in server memory and reset when the server restarts.</p>
-</section>
-<section class="table-wrap"><table><thead><tr><th>Time</th><th>Direction</th><th>Method</th><th>Endpoint</th><th>Result / Error</th><th>HTTP</th><th>OCPI</th><th>Duration</th><th>Request ID</th><th>Details</th></tr></thead><tbody id="rows"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody></table></section>
-<p class="footer-note">Tip: if a request fails before an HTTP response (for example, <code>EPROTO</code>, <code>ECONNREFUSED</code>, or a timeout), HTTP and OCPI status will be blank, and the transport error will be shown in Result / Error.</p>
-</main>
-<script>
-const rows=document.getElementById('rows');let transactions=[];let expandedId=null;
-function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n}
-function pretty(value){if(value===undefined||value===null)return '—';if(typeof value==='string')return value;try{return JSON.stringify(value,null,2)}catch{return String(value)}}
-function badge(text,kind='neutral'){return node('span','badge '+kind,text)}
-function eventTime(tx){const raw=tx.request?.time||tx.response?.time||tx.error?.time||tx.latestTime;return raw?new Date(raw).toLocaleString():'—'}
-function classify(tx){if(tx.error||tx.response?.type==='ERROR'||(!tx.response&&tx.error))return 'TRANSPORT_ERROR';const http=tx.response?.httpStatus;if(http!=null&&http>=400)return 'HTTP_ERROR';const ocpi=tx.response?.ocpiStatus;if(ocpi!=null&&ocpi!==1000)return 'HTTP_ERROR';if(tx.response)return 'SUCCESS';return 'PENDING'}
-function statusText(tx){const c=classify(tx);if(c==='TRANSPORT_ERROR')return tx.error?.error||tx.response?.error||'Transport error';if(c==='HTTP_ERROR'){const parts=[];if(tx.response?.error)parts.push(tx.response.error);if(tx.response?.body?.status_message)parts.push(tx.response.body.status_message);if(!parts.length)parts.push('Request failed');return parts.join(' — ')}if(c==='SUCCESS')return 'Completed';return 'Waiting for response'}
-function collectTransactions(events){const map=new Map();for(const e of events){const id=e.requestId||e.id||('event-'+Math.random());if(!map.has(id))map.set(id,{id,request:null,response:null,error:null,latestTime:e.time||null});const tx=map.get(id);if(e.time&&(!tx.latestTime||new Date(e.time)>new Date(tx.latestTime)))tx.latestTime=e.time;if(e.type==='REQUEST')tx.request=e;else if(e.type==='RESPONSE')tx.response=e;else if(e.type==='ERROR')tx.error=e;}return [...map.values()].sort((a,b)=>new Date(b.latestTime||0)-new Date(a.latestTime||0))}
-function matches(tx,filter,query){const c=classify(tx);if(filter==='SUCCESS'&&c!=='SUCCESS')return false;if(filter==='HTTP_ERROR'&&c!=='HTTP_ERROR')return false;if(filter==='TRANSPORT_ERROR'&&c!=='TRANSPORT_ERROR')return false;if(filter==='INBOUND'&&(tx.request?.direction||tx.response?.direction)!=='INBOUND')return false;if(filter==='OUTBOUND'&&(tx.request?.direction||tx.response?.direction)!=='OUTBOUND')return false;if(query){const blob=JSON.stringify(tx).toLowerCase();if(!blob.includes(query.toLowerCase()))return false}return true}
-function detailBlock(title,headers,body,error){const box=node('section','detail-box');box.append(node('h3','',title));if(error){box.append(node('div','error-text',error))}box.append(node('h4','','Headers'));box.append(node('pre','',pretty(headers)));box.append(node('h4','','Body / Payload'));box.append(node('pre','',pretty(body)));return box}
-function renderDetails(tx){const tr=node('tr','details-row');const td=node('td');td.colSpan=10;const grid=node('div','details-grid');const req=tx.request;const res=tx.response;grid.append(detailBlock('Request sent',req?.headers,req?.body, null));grid.append(detailBlock('Response received',res?.headers,res?.body,tx.error?.error||res?.error||null));const meta=node('div','muted');meta.style.marginTop='10px';meta.textContent='Request ID: '+tx.id+(res?.durationMs!=null?' · Duration: '+res.durationMs+' ms':'')+(res?.httpStatus!=null?' · HTTP '+res.httpStatus:'')+(res?.ocpiStatus!=null?' · OCPI '+res.ocpiStatus:'');td.append(grid,meta);tr.append(td);return tr}
-function render(){rows.replaceChildren();const filter=document.getElementById('filter').value;const query=document.getElementById('search').value.trim();const visible=transactions.filter(tx=>matches(tx,filter,query));if(!visible.length){const tr=node('tr');const td=node('td','empty','No matching transactions. Trigger a request from the simulator, then refresh this page.');td.colSpan=10;tr.append(td);rows.append(tr);return}for(const tx of visible){const req=tx.request||{};const res=tx.response||{};const c=classify(tx);const tr=node('tr');tr.append(node('td','',eventTime(tx)));tr.append(node('td','',req.direction||res.direction||'—'));tr.append(node('td','method',req.method||res.method||'—'));tr.append(node('td','endpoint',req.url||res.url||'—'));const resultTd=node('td');resultTd.append(badge(c==='SUCCESS'?'SUCCESS':c==='HTTP_ERROR'?'HTTP / OCPI ERROR':c==='TRANSPORT_ERROR'?'TRANSPORT ERROR':'PENDING',c==='SUCCESS'?'ok':c==='HTTP_ERROR'||c==='TRANSPORT_ERROR'?'bad':'warn'));if(c!=='SUCCESS')resultTd.append(node('div','error-text',statusText(tx)));tr.append(resultTd);const httpTd=node('td','count-cell');httpTd.textContent=res.httpStatus!=null?String(res.httpStatus):'—';tr.append(httpTd);const ocpiTd=node('td','count-cell');ocpiTd.textContent=res.ocpiStatus!=null?String(res.ocpiStatus):'—';tr.append(ocpiTd);const durationTd=node('td','count-cell');durationTd.textContent=res.durationMs!=null?res.durationMs+' ms':'—';tr.append(durationTd);tr.append(node('td','id-cell',tx.id));const actionTd=node('td');const btn=node('button','small-btn',expandedId===tx.id?'Hide details':'View details');btn.addEventListener('click',()=>{expandedId=expandedId===tx.id?null:tx.id;render()});actionTd.append(btn);tr.append(actionTd);rows.append(tr);if(expandedId===tx.id)rows.append(renderDetails(tx))}}
-async function load(){try{const response=await fetch('/api/logs?type=ALL',{cache:'no-store'});if(!response.ok)throw new Error('Could not load logs (HTTP '+response.status+')');const data=await response.json();const events=data.logs||[];transactions=collectTransactions(events);document.getElementById('requests').textContent=data.totalRequests??events.filter(e=>e.type==='REQUEST').length;document.getElementById('responses').textContent=data.totalResponses??events.filter(e=>e.type==='RESPONSE').length;document.getElementById('errors').textContent=data.totalErrors??events.filter(e=>e.type==='ERROR').length;document.getElementById('transactions').textContent=transactions.length;document.getElementById('updated').textContent='Last refreshed '+new Date().toLocaleTimeString()+' · '+(data.retainedEvents??events.length)+' retained events';render()}catch(error){rows.replaceChildren();const tr=node('tr');const td=node('td','empty','Could not load logs: '+error.message);td.colSpan=10;tr.append(td);rows.append(tr);document.getElementById('updated').textContent='Log loading failed'}}
-async function clearLogs(){if(!confirm('Clear all retained traffic logs?'))return;try{const r=await fetch('/api/logs',{method:'DELETE'});if(!r.ok)throw new Error('HTTP '+r.status);expandedId=null;await load()}catch(e){alert('Could not clear logs: '+e.message)}}
-document.getElementById('filter').addEventListener('change',render);document.getElementById('search').addEventListener('input',render);document.getElementById('refresh').addEventListener('click',load);document.getElementById('clear').addEventListener('click',clearLogs);load();setInterval(load,4000);
-</script>
-</body></html>
+  <header>
+    <h1>OCPI Request &amp; Response Monitor</h1>
+    <p>Every transaction stores the actual HTTP request and HTTP response separately. <span id="dbBadge"
+        class="badge neutral" style="margin-left: 8px;">DB: Checking…</span></p>
+    <nav><a href="/">← eMSP Simulator</a><a href="/cpo.html">CPO Dashboard</a><a href="/ocpi/versions" target="_blank"
+        rel="noreferrer">Open local Versions endpoint</a></nav>
+  </header>
+  <main>
+    <section class="stats">
+      <div class="stat">Requests<span id="requests" class="count">0</span></div>
+      <div class="stat">Responses<span id="responses" class="count">0</span></div>
+      <div class="stat">Errors<span id="errors" class="count">0</span></div>
+      <div class="stat">Transactions<span id="transactions" class="count">0</span></div>
+    </section>
+    <section class="panel">
+      <div class="toolbar">
+        <div class="field"><label for="search">Search endpoint, error, status, or ID</label><input id="search"
+            type="search" placeholder="e.g. locations, EPROTO, 401"></div>
+        <div class="field"><label for="filter">Show</label><select id="filter">
+            <option value="ALL">All transactions</option>
+            <option value="SUCCESS">Successful</option>
+            <option value="HTTP_ERROR">HTTP / OCPI errors</option>
+            <option value="TRANSPORT_ERROR">Connection / transport errors</option>
+            <option value="INBOUND">Inbound traffic</option>
+            <option value="OUTBOUND">Outbound traffic</option>
+          </select></div>
+        <div class="field"><label for="module">Module</label><select id="module">
+            <option value="">All modules</option>
+            <option value="locations">Locations</option>
+            <option value="credentials">Credentials</option>
+            <option value="versions">Versions</option>
+            <option value="tariffs">Tariffs</option>
+            <option value="tokens">Tokens</option>
+            <option value="sessions">Sessions</option>
+            <option value="cdrs">CDRs</option>
+            <option value="commands">Commands</option>
+          </select></div>
+        <button id="refresh">Refresh now</button><button id="clear" class="secondary">Clear logs</button>
+      </div>
+      <div id="updated" class="statusline">Loading logs…</div>
+      <p class="hint">Authorization headers, tokens, and credentials are redacted before persistence. The actual HTTP
+        request sent and actual response received are logged independently in MongoDB (collection:
+        <code>ocpiApiLogs</code>).</p>
+    </section>
+    <section class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Direction</th>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Result / Error</th>
+            <th>HTTP</th>
+            <th>OCPI</th>
+            <th>Duration</th>
+            <th>Request ID</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr>
+            <td colspan="10" class="empty">Loading…</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <p class="footer-note">Tip: For network timeouts or connection failures (e.g. <code>ECONNREFUSED</code>,
+      <code>ENOTFOUND</code>), the response is stored as <code>null</code> and the transport error details are displayed
+      under Response received.</p>
+    <dialog id="confirmModal" class="confirm-modal" aria-labelledby="modalTitle" aria-describedby="modalDesc">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 id="modalTitle" class="modal-title">Clear All Traffic Logs?</h3>
+            <p class="modal-subtitle">Permanent deletion confirmation</p>
+          </div>
+        </div>
+        <div class="modal-body" id="modalDesc">
+          <p>Are you sure you want to delete all retained OCPI request and response logs?</p>
+          <div class="modal-warning-box">
+            <strong>Warning:</strong> This will permanently erase all traffic logs from MongoDB and in-memory cache.
+            This action cannot be undone.
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelClearBtn" class="secondary">Cancel</button>
+          <button type="button" id="confirmClearBtn" class="danger">Yes, clear logs</button>
+        </div>
+      </div>
+    </dialog>
+  </main>
+  <script>
+    const rows = document.getElementById('rows'); let transactions = []; let expandedId = null;
+    function node(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n }
+    function pretty(value) { if (value === undefined || value === null) return '—'; if (typeof value === 'string') return value; try { return JSON.stringify(value, null, 2) } catch { return String(value) } }
+    function badge(text, kind = 'neutral') { return node('span', 'badge ' + kind, text) }
+    function eventTime(tx) { const raw = tx.request?.time || tx.response?.time || tx.latestTime; return raw ? new Date(raw).toLocaleString() : '—' }
+
+    function classify(tx) {
+      if (tx.error && !tx.response) return 'TRANSPORT_ERROR';
+      const http = tx.response?.httpStatus;
+      if (http != null && http >= 400) return 'HTTP_ERROR';
+      const ocpi = tx.response?.ocpiStatus ?? tx.response?.ocpiStatusCode;
+      if (ocpi != null && ocpi !== 1000) return 'HTTP_ERROR';
+      if (tx.error && tx.response) return 'HTTP_ERROR';
+      if (tx.response) return 'SUCCESS';
+      if (tx.error) return 'TRANSPORT_ERROR';
+      return 'PENDING';
+    }
+
+    function statusText(tx) {
+      const c = classify(tx);
+      if (c === 'TRANSPORT_ERROR') {
+        const errObj = tx.error;
+        const msg = (typeof errObj === 'string' ? errObj : (errObj?.message || errObj?.code)) || 'Connection failed';
+        return (errObj?.code ? '[' + errObj.code + '] ' : '') + msg;
+      }
+      if (c === 'HTTP_ERROR') {
+        const parts = [];
+        if (tx.response?.httpStatus) parts.push('HTTP ' + tx.response.httpStatus);
+        const ocpiCode = tx.response?.ocpiStatus ?? tx.response?.ocpiStatusCode;
+        const ocpiMsg = tx.response?.ocpiStatusMessage || tx.response?.body?.status_message;
+        if (ocpiCode && ocpiCode !== 1000) {
+          parts.push('OCPI ' + ocpiCode + (ocpiMsg ? ': ' + ocpiMsg : ''));
+        } else if (ocpiMsg) {
+          parts.push(ocpiMsg);
+        }
+        if (tx.error?.message && !parts.some(p => p.includes(tx.error.message))) {
+          parts.push(tx.error.message);
+        }
+        return parts.length ? parts.join(' · ') : 'Request failed';
+      }
+      if (c === 'SUCCESS') return 'Completed';
+      return 'Waiting for response';
+    }
+
+    function collectTransactions(events) {
+      const map = new Map();
+      for (const e of events) {
+        const id = e.id || e.requestId || ('event-' + Math.random());
+        const isUnified = e.type === 'TRANSACTION' || Boolean(e.request) || (e.response !== undefined);
+
+        if (isUnified) {
+          const tx = {
+            id,
+            direction: e.direction || 'OUTBOUND',
+            module: e.module || 'ocpi',
+            simulatorRole: e.simulatorRole || 'EMSP',
+            requestId: e.requestId || id,
+            correlationId: e.correlationId || null,
+            durationMs: e.durationMs ?? null,
+            latestTime: e.time || null,
+            request: {
+              method: e.request?.method || e.method || 'GET',
+              url: e.request?.url || e.url || '',
+              headers: e.request?.headers || e.headers || e.requestHeaders || {},
+              body: e.request?.body !== undefined ? e.request.body : (e.body !== undefined ? e.body : (e.requestBody ?? null)),
+              direction: e.direction,
+              time: e.time,
+            },
+            response: e.response !== null && (e.response || e.httpStatus != null || e.responseBody !== undefined) ? {
+              httpStatus: e.response ? e.response.httpStatus : e.httpStatus,
+              headers: e.response ? (e.response.headers || {}) : (e.responseHeaders || {}),
+              body: e.response ? (e.response.body !== undefined ? e.response.body : null) : (e.responseBody ?? null),
+              ocpiStatus: e.response ? (e.response.ocpiStatusCode ?? e.response.ocpiStatus) : (e.ocpiStatus ?? e.ocpiStatusCode),
+              ocpiStatusMessage: e.response ? (e.response.ocpiStatusMessage ?? null) : (e.ocpiStatusMessage ?? null),
+              durationMs: e.durationMs ?? null,
+              time: e.time,
+            } : null,
+            error: e.error ? {
+              code: e.error.code || e.transportErrorCode || 'ERROR',
+              message: e.error.message || (typeof e.error === 'string' ? e.error : e.transportErrorMessage || 'Error occurred'),
+            } : (e.transportErrorMessage || e.transportErrorCode ? {
+              code: e.transportErrorCode || 'ERROR',
+              message: e.transportErrorMessage || 'Transport error',
+            } : null),
+          };
+          map.set(id, tx);
+        } else {
+          // Legacy separate REQUEST / RESPONSE / ERROR events
+          const matchId = e.requestId || id;
+          if (!map.has(matchId)) {
+            map.set(matchId, {
+              id: matchId,
+              direction: e.direction,
+              module: e.module,
+              simulatorRole: e.simulatorRole,
+              requestId: e.requestId,
+              correlationId: e.correlationId,
+              durationMs: e.durationMs,
+              latestTime: e.time || null,
+              request: null,
+              response: null,
+              error: null,
+            });
+          }
+          const tx = map.get(matchId);
+          if (e.time && (!tx.latestTime || new Date(e.time) > new Date(tx.latestTime))) tx.latestTime = e.time;
+          if (e.durationMs != null) tx.durationMs = e.durationMs;
+          if (e.direction) tx.direction = e.direction;
+          if (e.module) tx.module = e.module;
+
+          if (e.type === 'REQUEST') {
+            tx.request = {
+              method: e.method,
+              url: e.url,
+              headers: e.headers || e.requestHeaders || {},
+              body: e.body !== undefined ? e.body : e.requestBody,
+              direction: e.direction,
+              time: e.time,
+            };
+          } else if (e.type === 'RESPONSE') {
+            tx.response = {
+              httpStatus: e.httpStatus,
+              headers: e.responseHeaders || {},
+              body: e.responseBody !== undefined ? e.responseBody : null,
+              ocpiStatus: e.ocpiStatus || e.ocpiStatusCode,
+              ocpiStatusMessage: e.ocpiStatusMessage,
+              durationMs: e.durationMs,
+              time: e.time,
+            };
+          } else if (e.type === 'ERROR') {
+            tx.error = {
+              code: e.transportErrorCode,
+              message: e.error || e.transportErrorMessage,
+              time: e.time,
+            };
+          }
+        }
+      }
+      return [...map.values()].sort((a, b) => new Date(b.latestTime || 0) - new Date(a.latestTime || 0));
+    }
+
+    function matches(tx, filter, query) {
+      const c = classify(tx);
+      if (filter === 'SUCCESS' && c !== 'SUCCESS') return false;
+      if (filter === 'HTTP_ERROR' && c !== 'HTTP_ERROR') return false;
+      if (filter === 'TRANSPORT_ERROR' && c !== 'TRANSPORT_ERROR') return false;
+      if (filter === 'INBOUND' && (tx.direction || tx.request?.direction) !== 'INBOUND') return false;
+      if (filter === 'OUTBOUND' && (tx.direction || tx.request?.direction) !== 'OUTBOUND') return false;
+      if (query) {
+        const blob = JSON.stringify(tx).toLowerCase();
+        if (!blob.includes(query.toLowerCase())) return false;
+      }
+      return true;
+    }
+
+    function detailBlock(title, subtitle, method, url, statusBadges, headers, body, error) {
+      const box = node('section', 'detail-box');
+      const head = node('div', 'detail-header');
+      const h3 = node('h3', '', title);
+      if (subtitle) {
+        const sub = node('span', 'muted', ' (' + subtitle + ')');
+        sub.style.fontWeight = 'normal';
+        sub.style.fontSize = '12px';
+        h3.append(sub);
+      }
+      head.append(h3);
+      if (statusBadges && statusBadges.length) {
+        const badgeWrap = node('div', 'detail-badges');
+        statusBadges.forEach(b => badgeWrap.append(b));
+        head.append(badgeWrap);
+      }
+      box.append(head);
+
+      if (method || url) {
+        const endBox = node('div', 'endpoint-box');
+        if (method) endBox.append(node('span', 'method-tag', method));
+        if (url) endBox.append(node('span', 'url-text', url));
+        box.append(endBox);
+      }
+
+      if (error) {
+        const errBox = node('div', 'error-alert');
+        errBox.append(node('strong', '', 'Transport Error: '));
+        const errMsg = typeof error === 'object' ? (error.message || error.code || JSON.stringify(error)) : String(error);
+        errBox.append(node('span', '', errMsg));
+        box.append(errBox);
+      }
+
+      box.append(node('h4', '', 'Headers'));
+      box.append(node('pre', '', pretty(headers)));
+
+      box.append(node('h4', '', 'Body / Payload'));
+      box.append(node('pre', '', body !== null && body !== undefined ? pretty(body) : '— (No body)'));
+
+      return box;
+    }
+
+    function renderDetails(tx) {
+      const tr = node('tr', 'details-row');
+      const td = node('td');
+      td.colSpan = 10;
+      const grid = node('div', 'details-grid');
+      const req = tx.request;
+      const res = tx.response;
+      const isInbound = tx.direction === 'INBOUND';
+
+      // Request Column
+      const reqBadges = [badge(tx.direction || 'OUTBOUND', isInbound ? 'warn' : 'neutral')];
+      if (tx.module) reqBadges.push(badge(tx.module, 'neutral'));
+      const reqTitle = isInbound ? 'Request Received' : 'Request Sent';
+      const reqSub = isInbound ? 'Incoming from client' : 'Outgoing to partner';
+      grid.append(detailBlock(reqTitle, reqSub, req?.method, req?.url, reqBadges, req?.headers, req?.body, null));
+
+      // Response Column
+      const resTitle = isInbound ? 'Response Sent' : 'Response Received';
+      const resSub = isInbound ? 'Outgoing to client' : 'Incoming from partner';
+      const resBadges = [];
+      if (res) {
+        if (res.httpStatus != null) {
+          resBadges.push(badge('HTTP ' + res.httpStatus, res.httpStatus < 400 ? 'ok' : 'bad'));
+        }
+        const ocpiCode = res.ocpiStatus ?? res.ocpiStatusCode;
+        if (ocpiCode != null) {
+          resBadges.push(badge('OCPI ' + ocpiCode, ocpiCode === 1000 ? 'ok' : 'bad'));
+        }
+        if (tx.durationMs != null || res.durationMs != null) {
+          resBadges.push(badge((tx.durationMs ?? res.durationMs) + ' ms', 'neutral'));
+        }
+      } else {
+        resBadges.push(badge('NO RESPONSE', 'bad'));
+      }
+
+      grid.append(detailBlock(resTitle, resSub, null, null, resBadges, res?.headers, res?.body, tx.error));
+
+      // Metadata footer
+      const meta = node('div', 'meta-strip');
+      const addMeta = (lbl, val) => {
+        if (!val) return;
+        const item = node('div', 'meta-item');
+        item.append(node('span', 'meta-label', lbl + ':'));
+        item.append(node('span', '', String(val)));
+        meta.append(item);
+      };
+      addMeta('Transaction ID', tx.id);
+      addMeta('Request ID', tx.requestId);
+      addMeta('Correlation ID', tx.correlationId);
+      addMeta('Role', tx.simulatorRole);
+      addMeta('Module', tx.module);
+      if (tx.durationMs != null) addMeta('Duration', tx.durationMs + ' ms');
+
+      td.append(grid, meta);
+      tr.append(td);
+      return tr;
+    }
+
+    function render() {
+      rows.replaceChildren();
+      const filter = document.getElementById('filter').value;
+      const query = document.getElementById('search').value.trim();
+      const visible = transactions.filter(tx => matches(tx, filter, query));
+      if (!visible.length) {
+        const tr = node('tr');
+        const td = node('td', 'empty', 'No matching transactions. Trigger a request from the simulator, then refresh this page.');
+        td.colSpan = 10;
+        tr.append(td);
+        rows.append(tr);
+        return;
+      }
+      for (const tx of visible) {
+        const req = tx.request || {};
+        const res = tx.response || {};
+        const c = classify(tx);
+        const tr = node('tr');
+        tr.append(node('td', '', eventTime(tx)));
+        const dirTd = node('td');
+        dirTd.append(badge(tx.direction || req.direction || 'OUTBOUND', (tx.direction || req.direction) === 'INBOUND' ? 'warn' : 'neutral'));
+        tr.append(dirTd);
+        tr.append(node('td', 'method', req.method || '—'));
+        tr.append(node('td', 'endpoint', req.url || '—'));
+        const resultTd = node('td');
+        resultTd.append(badge(c === 'SUCCESS' ? 'SUCCESS' : c === 'HTTP_ERROR' ? 'HTTP / OCPI ERROR' : c === 'TRANSPORT_ERROR' ? 'TRANSPORT ERROR' : 'PENDING', c === 'SUCCESS' ? 'ok' : c === 'HTTP_ERROR' || c === 'TRANSPORT_ERROR' ? 'bad' : 'warn'));
+        if (c !== 'SUCCESS') resultTd.append(node('div', 'error-text', statusText(tx)));
+        tr.append(resultTd);
+        const httpTd = node('td', 'count-cell');
+        httpTd.textContent = res.httpStatus != null ? String(res.httpStatus) : '—';
+        tr.append(httpTd);
+        const ocpiTd = node('td', 'count-cell');
+        ocpiTd.textContent = res.ocpiStatus != null ? String(res.ocpiStatus) : '—';
+        tr.append(ocpiTd);
+        const durationTd = node('td', 'count-cell');
+        const dur = tx.durationMs ?? res.durationMs;
+        durationTd.textContent = dur != null ? dur + ' ms' : '—';
+        tr.append(durationTd);
+        tr.append(node('td', 'id-cell', tx.requestId || tx.id));
+        const actionTd = node('td');
+        const btn = node('button', 'small-btn', expandedId === tx.id ? 'Hide details' : 'View details');
+        btn.addEventListener('click', () => { expandedId = expandedId === tx.id ? null : tx.id; render() });
+        actionTd.append(btn);
+        tr.append(actionTd);
+        rows.append(tr);
+        if (expandedId === tx.id) rows.append(renderDetails(tx));
+      }
+    }
+
+    async function updateDbBadge() {
+      try {
+        const sRes = await fetch('/api/status');
+        if (sRes.ok) {
+          const s = await sRes.json();
+          const dbStatus = s.database?.status || 'UNKNOWN';
+          const badgeEl = document.getElementById('dbBadge');
+          if (badgeEl) {
+            badgeEl.textContent = 'MongoDB: ' + dbStatus;
+            badgeEl.className = 'badge ' + (dbStatus === 'CONNECTED' ? 'ok' : dbStatus === 'CONNECTING' ? 'warn' : 'bad');
+          }
+        }
+      } catch (e) { }
+    }
+
+    async function load() {
+      updateDbBadge();
+      try {
+        const filter = document.getElementById('filter').value;
+        const module = document.getElementById('module').value;
+        const search = document.getElementById('search').value.trim();
+        let url = `/api/logs?filter=${encodeURIComponent(filter)}`;
+        if (module) url += `&module=${encodeURIComponent(module)}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error('Could not load logs (HTTP ' + response.status + ')');
+        const data = await response.json();
+        const events = data.logs || [];
+        transactions = collectTransactions(events);
+        document.getElementById('requests').textContent = data.totalRequests ?? events.length;
+        document.getElementById('responses').textContent = data.totalResponses ?? events.filter(e => e.response !== null).length;
+        document.getElementById('errors').textContent = data.totalErrors ?? 0;
+        document.getElementById('transactions').textContent = transactions.length;
+        document.getElementById('updated').textContent = 'Last refreshed ' + new Date().toLocaleTimeString() + ' · ' + (data.retainedEvents ?? events.length) + ' retained transactions' + (data.source ? ' [' + data.source + ']' : '');
+        render();
+      } catch (error) {
+        rows.replaceChildren(); const tr = node('tr'); const td = node('td', 'empty', 'Could not load logs: ' + error.message); td.colSpan = 10; tr.append(td); rows.append(tr); document.getElementById('updated').textContent = 'Log loading failed';
+      }
+    }
+    const confirmModal = document.getElementById('confirmModal');
+    const cancelClearBtn = document.getElementById('cancelClearBtn');
+    const confirmClearBtn = document.getElementById('confirmClearBtn');
+
+    function openClearModal() {
+      if (confirmModal && typeof confirmModal.showModal === 'function') {
+        confirmModal.showModal();
+        cancelClearBtn.focus();
+      } else if (confirm('Are you sure you want to clear all retained traffic logs? This action cannot be undone.')) {
+        executeClearLogs();
+      }
+    }
+
+    function closeClearModal() {
+      if (confirmModal && typeof confirmModal.close === 'function' && confirmModal.open) {
+        confirmModal.close();
+      }
+    }
+
+    if (confirmModal) {
+      confirmModal.addEventListener('click', (e) => {
+        const rect = confirmModal.getBoundingClientRect();
+        const inDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height && rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+        if (!inDialog) closeClearModal();
+      });
+    }
+    if (cancelClearBtn) {
+      cancelClearBtn.addEventListener('click', closeClearModal);
+    }
+
+    async function executeClearLogs() {
+      if (confirmClearBtn) { confirmClearBtn.disabled = true; confirmClearBtn.textContent = 'Clearing…'; }
+      try {
+        const r = await fetch('/api/logs', { method: 'DELETE' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        expandedId = null;
+        closeClearModal();
+        await load();
+        const upEl = document.getElementById('updated');
+        if (upEl) { upEl.textContent = 'All logs cleared successfully at ' + new Date().toLocaleTimeString(); }
+      } catch (e) {
+        alert('Could not clear logs: ' + e.message);
+      } finally {
+        if (confirmClearBtn) { confirmClearBtn.disabled = false; confirmClearBtn.textContent = 'Yes, clear logs'; }
+      }
+    }
+
+    if (confirmClearBtn) {
+      confirmClearBtn.addEventListener('click', executeClearLogs);
+    }
+    document.getElementById('filter').addEventListener('change', load);
+    document.getElementById('module').addEventListener('change', load);
+    document.getElementById('search').addEventListener('input', () => { clearTimeout(window._searchTimer); window._searchTimer = setTimeout(load, 350) });
+    document.getElementById('refresh').addEventListener('click', load);
+    document.getElementById('clear').addEventListener('click', openClearModal);
+    load(); setInterval(load, 4000);
+  </script>
+</body>
+
+</html>
