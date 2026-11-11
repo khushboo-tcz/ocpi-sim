@@ -13,7 +13,6 @@ const ocpiEndpointSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "OcpiVersion",
       default: null,
-      index: true,
     },
     identifier: {
       type: String,

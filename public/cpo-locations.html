@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPO Location Builder · OCPI 2.2.1 Simulator</title>
+<style>
+  :root {
+    --primary: #2458d3;
+    --primary-hover: #1d4ed8;
+    --cpo-color: #7c3aed;
+    --cpo-hover: #6d28d9;
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --text: #172033;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); }
+  
+  header {
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    color: #fff;
+    padding: 22px max(20px, calc((100% - 1400px) / 2));
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  header p { margin: 0; color: #94a3b8; font-size: 13.5px; }
+  nav { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  nav a {
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 550;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.15s ease;
+  }
+  nav a:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  nav a.active {
+    color: #ffffff;
+    background: #2563eb;
+    border-color: #3b82f6;
+  }
+  nav a.nav-swagger {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.25);
+    font-weight: 600;
+  }
+  nav a.nav-swagger:hover {
+    background: rgba(56, 189, 248, 0.16);
+    color: #7dd3fc;
+  }
+
+  main { max-width: 1400px; margin: 24px auto 60px; padding: 0 20px; }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 6px rgba(15,23,42,.03);
+  }
+  .stat-label { font-size: 11.5px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 24px; font-weight: 750; color: var(--text); margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+
+  /* Navigation View Tabs */
+  .view-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 22px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 1px;
+  }
+  .view-tab-btn {
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -3px;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .view-tab-btn:hover { color: var(--text); }
+  .view-tab-btn.active {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+
+  /* Panels / Cards */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { font-size: 18px; font-weight: 750; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .panel-subtitle { font-size: 13px; color: var(--muted); margin: 3px 0 0; }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.bad { background: #fee2e2; color: #991b1b; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .badge.info { background: #dbeafe; color: #1e40af; }
+  .badge.purple { background: #f3e8ff; color: #6b21a8; }
+  .badge.neutral { background: #f1f5f9; color: #475569; }
+  .badge.dot::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* Buttons */
+  button, .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 15px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    text-decoration: none;
+  }
+  button:hover, .btn:hover { background: var(--primary-hover); }
+  button:active, .btn:active { transform: scale(0.98); }
+  button.secondary, .btn.secondary { background: #e8edf6; color: #172033; }
+  button.secondary:hover, .btn.secondary:hover { background: #dbe3ef; }
+  button.outline { background: transparent; border: 1px solid var(--border); color: #334155; }
+  button.outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+  button.danger { background: #dc2626; color: white; }
+  button.danger:hover { background: #b91c1c; }
+  button.cpo { background: var(--cpo-color); color: white; }
+  button.cpo:hover { background: var(--cpo-hover); }
+  .btn-sm { padding: 5px 10px; font-size: 11.5px; border-radius: 6px; }
+
+  /* Form Elements */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 16px; }
+  
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-size: 12.5px; font-weight: 650; margin-bottom: 6px; color: #334155; }
+  label .req { color: #dc2626; margin-left: 2px; }
+  label .sub-label { font-size: 11px; font-weight: 400; color: var(--muted); }
+  
+  input, select, textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: white;
+    font: inherit;
+    font-size: 13px;
+    color: #0f172a;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(36, 88, 211, 0.15);
+  }
+  input[readonly] { background: #f8fafc; color: #475569; cursor: not-allowed; }
+
+  .input-copy-group {
+    display: flex;
+    gap: 6px;
+  }
+  .input-copy-group input { flex: 1; }
+
+  .checkbox-group {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .checkbox-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .checkbox-item input { width: auto; margin: 0; cursor: pointer; }
+
+  /* Builder Layout Grid */
+  .builder-layout {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 22px;
+    align-items: start;
+  }
+
+  /* Form Step Cards / Collapsible */
+  .step-card {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .step-header {
+    background: #f8fafc;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .step-title {
+    font-size: 15px;
+    font-weight: 750;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .step-body { padding: 18px; }
+
+  /* EVSE Card Inside Step 2 */
+  .evse-card {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .evse-card:last-child { margin-bottom: 0; }
+  .evse-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #cbd5e1;
+  }
+  .evse-title { font-size: 14px; font-weight: 750; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+
+  /* Connector Box Inside EVSE */
+  .connector-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .connector-box:last-child { margin-bottom: 0; }
+  .connector-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .connector-title { font-size: 13px; font-weight: 700; color: #334155; }
+
+  /* Power Warning Banner */
+  .power-warning {
+    display: none;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    margin-top: 6px;
+  }
+
+  /* Right Side Preview Pane */
+  .preview-pane {
+    position: sticky;
+    top: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(15,23,42,.05);
+  }
+  .preview-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+  .preview-tab-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .preview-tab-btn.active {
+    background: #e8edf6;
+    color: var(--primary);
+  }
+
+  /* Hierarchy Tree */
+  .tree-node {
+    padding: 6px 10px;
+    font-size: 12.5px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+  }
+  .tree-node.level-0 { font-weight: 750; background: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
+  .tree-node.level-1 { margin-left: 18px; font-weight: 650; background: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }
+  .tree-node.level-2 { margin-left: 36px; font-weight: 550; background: #f1f5f9; color: #334155; }
+
+  /* Code / JSON Box */
+  pre.code-block {
+    margin: 0;
+    padding: 14px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    max-height: 480px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Validation Checklist */
+  .val-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 12.5px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .val-item:last-child { border-bottom: 0; }
+  .val-icon.ok { color: #16a34a; font-weight: 700; }
+  .val-icon.err { color: #dc2626; font-weight: 700; }
+
+  /* Locations List Table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: white;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+  th, td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  th { background: #f8fafc; font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .code-font { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  /* Toast Notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0f172a;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    z-index: 10000;
+    display: none;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+  .modal-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 750px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+  }
+
+  @media (max-width: 1000px) {
+    .builder-layout { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-4, .grid-3 { grid-template-columns: 1fr; }
+    .preview-pane { position: static; margin-top: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CPO Location &amp; Tariff Builder</h1>
+  <p>OCPI 2.2.1 · Configure Locations, EVSEs, Connectors &amp; Tariffs for the CPO Sender Interface</p>
+  <nav>
+    <a href="/">← Handshake</a>
+    <a href="/cpo">CPO Dashboard</a>
+    <a href="/cpo-locations" class="active">Location Builder</a>
+    <a href="/emsp">eMSP Dashboard</a>
+    <a href="/logs">Traffic Logs</a>
+    <a href="/docs" target="_blank" class="nav-swagger">Swagger API Docs ↗</a>
+  </nav>
+</header>
+
+<main>
+  <!-- Stats Row -->
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Locations</div>
+      <div class="stat-value" id="statLocations">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total EVSEs</div>
+      <div class="stat-value" id="statEvses">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Connectors</div>
+      <div class="stat-value" id="statConnectors">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Published Locations</div>
+      <div class="stat-value">
+        <span id="statPublished">0</span>
+        <span class="badge ok" style="font-size: 11px;">Active</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- View Switcher Tabs -->
+  <div class="view-tabs">
+    <button class="view-tab-btn active" id="tabBtnList" onclick="switchMainView('LIST')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Location List (<span id="locationCountTab">0</span>)
+    </button>
+    <button class="view-tab-btn" id="tabBtnBuilder" onclick="switchMainView('BUILDER')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <span id="builderTabLabel">Location Builder (+ New)</span>
+    </button>
+  </div>
+
+  <!-- VIEW 1: Location List Screen -->
+  <section id="viewList" class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Configured Charging Locations</h2>
+        <div class="panel-subtitle">These locations are served live by the CPO simulator on <code>/ocpi/cpo/2.2.1/locations</code></div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn secondary btn-sm" onclick="fetchLocationsList()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Refresh
+        </button>
+        <button class="btn btn-sm" onclick="startNewLocation()">+ Create Location</button>
+      </div>
+    </div>
+
+    <!-- Toolbar filter -->
+    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+      <input type="search" id="listSearch" placeholder="Search by name, city, or Location ID…" style="flex: 1; min-width: 260px;" oninput="renderLocationsTable()">
+      <select id="listPublishFilter" style="flex: 0 0 180px;" onchange="renderLocationsTable()">
+        <option value="ALL">All Publication Statuses</option>
+        <option value="PUBLISHED">Published Only</option>
+        <option value="UNPUBLISHED">Unpublished Only</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Location Name</th>
+            <th>Location ID</th>
+            <th>City &amp; Country</th>
+            <th>EVSEs</th>
+            <th>Connectors</th>
+            <th>Status</th>
+            <th>Last Updated</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="locationsTableBody">
+          <tr><td colspan="8" style="text-align: center; color: var(--muted); padding: 32px;">Loading locations…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- VIEW 2: Location Builder Screen -->
+  <section id="viewBuilder" style="display: none;">
+    <div class="builder-layout">
+      
+      <!-- Left Side: Multi-Step Builder Form -->
+      <div>
+        <!-- Mode Banner (if editing) -->
+        <div id="editingBanner" style="display: none; background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; justify-content: space-between; align-items: center;">
+          <div style="font-size: 13px; font-weight: 650; color: #0369a1;">
+            ✏️ Editing Location: <span id="editingLocationName" class="code-font"></span>
+          </div>
+          <button class="outline btn-sm" onclick="cancelEditMode()">Cancel Edit (New Location)</button>
+        </div>
+
+        <!-- Step 1: Location Details -->
+        <div class="step-card">
+          <div class="step-header">
+            <h3 class="step-title">
+              <span class="badge info">Step 1</span>
+              Location Details
+            </h3>
+            <span class="badge neutral" id="badgeLocId">Auto-ID Generated</span>
+          </div>
+          <div class="step-body">
+            
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="locId">Location ID <span class="sub-label">(Immutable within CPO)</span></label>
+                <div class="input-copy-group">
+                  <input id="locId" readonly class="code-font" placeholder="e.g. LOC-XXXX">
+                  <button type="button" class="outline btn-sm" onclick="copyFromInput('locId')">Copy</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="locName">Location Name <span class="req">*</span></label>
+                <input id="locName" placeholder="e.g. Downtown Central Fast Hub" required oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="locAddress">Street Address <span class="req">*</span></label>
+                <input id="locAddress" placeholder="e.g. 104 MG Road, Tech Park" required oninput="onFormChange()">
+              </div>
+              <div class="form-group">
+                <label for="locCity">City <span class="req">*</span></label>
+                <input id="locCity" placeholder="e.g. Bengaluru" required oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group">
+                <label for="locPostal">Postal Code</label>
+                <input id="locPostal" placeholder="e.g. 560001" oninput="onFormChange()">
+              </div>
+              <div class="form-group">
+                <label for="locState">State / Province</label>
+                <input id="locState" placeholder="e.g. Karnataka" oninput="onFormChange()">
+              </div>
+              <div class="form-group">
+                <label for="locCountry">Country (ISO-3 alpha-3) <span class="req">*</span></label>
+                <input id="locCountry" value="IND" maxlength="3" pattern="[A-Z]{3}" placeholder="IND" required oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="locLat">Latitude (-90 to +90) <span class="req">*</span></label>
+                <input id="locLat" type="number" step="any" min="-90" max="90" value="12.9716" required oninput="onFormChange()">
+              </div>
+              <div class="form-group">
+                <label for="locLon">Longitude (-180 to +180) <span class="req">*</span></label>
+                <input id="locLon" type="number" step="any" min="-180" max="180" value="77.5946" required oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+              <span style="font-size: 11.5px; color: var(--muted); align-self: center;">Quick Coords:</span>
+              <button type="button" class="outline btn-sm" onclick="setCoordinates(12.9716, 77.5946, 'Bengaluru')">Bengaluru</button>
+              <button type="button" class="outline btn-sm" onclick="setCoordinates(28.6139, 77.2090, 'New Delhi')">Delhi</button>
+              <button type="button" class="outline btn-sm" onclick="setCoordinates(19.0760, 72.8777, 'Mumbai')">Mumbai</button>
+              <button type="button" class="outline btn-sm" onclick="setCoordinates(52.5200, 13.4050, 'Berlin')">Berlin</button>
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group">
+                <label for="locTimeZone">Time Zone (IANA) <span class="req">*</span></label>
+                <input id="locTimeZone" value="Asia/Kolkata" required oninput="onFormChange()">
+              </div>
+              <div class="form-group">
+                <label for="locCountryCode">CPO Country Code <span class="req">*</span></label>
+                <input id="locCountryCode" value="IN" maxlength="2" pattern="[A-Z]{2}" required oninput="onFormChange()">
+              </div>
+              <div class="form-group">
+                <label for="locPartyId">CPO Party ID <span class="req">*</span></label>
+                <input id="locPartyId" value="CZK" maxlength="3" pattern="[A-Z0-9]{3}" required oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group">
+                <label for="locPublish">Publish Location</label>
+                <select id="locPublish" onchange="onFormChange()">
+                  <option value="true">Yes (Visible to eMSPs)</option>
+                  <option value="false">No (Unpublished/Private)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="locParkingType">Parking Type</label>
+                <select id="locParkingType" onchange="onFormChange()">
+                  <option value="">None / Not Specified</option>
+                  <option value="PARKING_LOT">PARKING_LOT (Surface Lot)</option>
+                  <option value="PARKING_GARAGE">PARKING_GARAGE (Multi-Storey)</option>
+                  <option value="UNDERGROUND_GARAGE">UNDERGROUND_GARAGE</option>
+                  <option value="ALONG_MOTORWAY">ALONG_MOTORWAY (Highway)</option>
+                  <option value="ON_STREET">ON_STREET (Curbside)</option>
+                  <option value="ON_DRIVEWAY">ON_DRIVEWAY</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="locOperator">Operator Name</label>
+                <input id="locOperator" placeholder="e.g. OCPI Test Operator" oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div class="checkbox-group">
+              <label class="checkbox-item">
+                <input type="checkbox" id="loc247" checked onchange="onFormChange()">
+                Open 24/7 (Twenty-Four Seven)
+              </label>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Step 2: EVSE Configuration -->
+        <div class="step-card">
+          <div class="step-header">
+            <h3 class="step-title">
+              <span class="badge purple">Step 2</span>
+              EVSE &amp; Connector Configuration
+            </h3>
+            <button type="button" class="btn secondary btn-sm" onclick="addEvse()">
+              + Add EVSE
+            </button>
+          </div>
+          <div class="step-body" id="evseContainer">
+            <!-- EVSE Cards will be rendered dynamically here -->
+          </div>
+        </div>
+
+        <!-- Step 3: Tariff Assignment & Builder -->
+        <div class="step-card">
+          <div class="step-header">
+            <h3 class="step-title">
+              <span class="badge ok">Step 3</span>
+              Tariff Builder &amp; Pricing
+            </h3>
+            <span class="badge info" id="tariffSummaryBadge">₹12/kWh + ₹2/min + ₹10 session fee</span>
+          </div>
+          <div class="step-body">
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="tariffModeSelect">Tariff Selection</label>
+                <select id="tariffModeSelect" onchange="onTariffModeChange()">
+                  <option value="EXISTING">Select from Saved Tariffs</option>
+                  <option value="NEW">Create New Tariff Inline</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="existingTariffWrap">
+                <label for="savedTariffSelect">Choose Existing Tariff</label>
+                <select id="savedTariffSelect" onchange="onSavedTariffSelected()">
+                  <option value="">Loading tariffs…</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Inline Tariff Form (Visible when creating or viewing) -->
+            <div id="inlineTariffForm" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 10px;">
+              <div class="grid-3">
+                <div class="form-group">
+                  <label for="tId">Tariff ID</label>
+                  <input id="tId" class="code-font" value="TAR-1" oninput="onFormChange()">
+                </div>
+                <div class="form-group">
+                  <label for="tCurrency">Currency (ISO 4217)</label>
+                  <input id="tCurrency" value="INR" maxlength="3" oninput="onFormChange()">
+                </div>
+                <div class="form-group">
+                  <label for="tType">Tariff Type</label>
+                  <select id="tType" onchange="onFormChange()">
+                    <option value="REGULAR">REGULAR</option>
+                    <option value="PROFILE_CHEAP">PROFILE_CHEAP</option>
+                    <option value="PROFILE_FAST">PROFILE_FAST</option>
+                    <option value="PROFILE_GREEN">PROFILE_GREEN</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid-4">
+                <div class="form-group">
+                  <label for="tEnergy">Energy Price (/kWh)</label>
+                  <input id="tEnergy" type="number" step="0.01" min="0" value="12.00" oninput="onFormChange()">
+                </div>
+                <div class="form-group">
+                  <label for="tTime">Time Price (/min)</label>
+                  <input id="tTime" type="number" step="0.01" min="0" value="2.00" oninput="onFormChange()">
+                </div>
+                <div class="form-group">
+                  <label for="tFlat">Flat Session Fee</label>
+                  <input id="tFlat" type="number" step="0.01" min="0" value="10.00" oninput="onFormChange()">
+                </div>
+                <div class="form-group">
+                  <label for="tParking">Parking Fee (/hr)</label>
+                  <input id="tParking" type="number" step="0.01" min="0" value="0.00" oninput="onFormChange()">
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                <div style="font-size: 12px; color: var(--muted);">
+                  Price Formula: <strong id="tariffFormulaDisplay" style="color: #1e293b;">₹12/kWh + ₹2/min + ₹10 session fee</strong>
+                </div>
+                <button type="button" class="outline btn-sm" onclick="applyTariffToAllConnectors()">
+                  Apply Tariff to All Connectors
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Side: Live Configuration Preview -->
+      <div class="preview-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-size: 16px; font-weight: 750; margin: 0;">Live Preview</h3>
+          <div class="preview-tabs">
+            <button class="preview-tab-btn active" id="pTabHierarchy" onclick="switchPreviewTab('HIERARCHY')">Hierarchy</button>
+            <button class="preview-tab-btn" id="pTabJson" onclick="switchPreviewTab('JSON')">OCPI JSON</button>
+            <button class="preview-tab-btn" id="pTabVal" onclick="switchPreviewTab('VALIDATION')">Validation</button>
+          </div>
+        </div>
+
+        <!-- Tab 1: Hierarchy Tree -->
+        <div id="previewTabHierarchyContent">
+          <div id="hierarchyTree" style="margin-bottom: 16px; max-height: 400px; overflow-y: auto;">
+            <!-- Tree will be rendered here -->
+          </div>
+        </div>
+
+        <!-- Tab 2: OCPI 2.2.1 JSON Preview -->
+        <div id="previewTabJsonContent" style="display: none; position: relative;">
+          <div style="position: absolute; top: 8px; right: 8px; z-index: 10;">
+            <button class="outline btn-sm" style="background: rgba(255,255,255,0.15); color: white; border-color: rgba(255,255,255,0.3);" onclick="copyJsonPreview()">
+              Copy JSON
+            </button>
+          </div>
+          <pre class="code-block" id="jsonPreviewBox">{}</pre>
+        </div>
+
+        <!-- Tab 3: Validation Checklist -->
+        <div id="previewTabValContent" style="display: none;">
+          <div id="validationList" style="margin-bottom: 16px;">
+            <!-- Validation checklist items -->
+          </div>
+        </div>
+
+        <!-- Actions Footer -->
+        <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 14px;">
+          <div id="formErrorMessage" style="display: none; background: #fee2e2; border: 1px solid #fecaca; color: #991b1b; padding: 10px; border-radius: 8px; font-size: 12.5px; margin-bottom: 12px;"></div>
+
+          <div style="display: flex; gap: 10px;">
+            <button id="saveLocationBtn" style="flex: 1; padding: 12px 18px; font-size: 14px;" onclick="submitLocationForm()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="saveBtnText">Create Location</span>
+            </button>
+            <button type="button" class="outline" onclick="resetBuilderForm()">
+              Reset
+            </button>
+          </div>
+          <p style="font-size: 11.5px; color: var(--muted); text-align: center; margin: 10px 0 0;">
+            Saved directly to MongoDB and immediately queryable by OCPI partners on <code>/ocpi/cpo/2.2.1/locations</code>.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<!-- Modal: View Location Details -->
+<div id="locationModal" class="modal-backdrop">
+  <div class="modal-content">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+      <div>
+        <h3 id="modalTitle" style="font-size: 18px; font-weight: 750; margin: 0 0 4px;">Location Details</h3>
+        <div id="modalSubtitle" style="font-size: 12.5px; color: var(--muted);"></div>
+      </div>
+      <button class="outline btn-sm" onclick="closeModal()">✕ Close</button>
+    </div>
+    
+    <div id="modalBody">
+      <!-- Injected modal details -->
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 14px;">
+      <button class="outline btn-sm" onclick="copyModalJson()">Copy OCPI JSON</button>
+      <div style="display: flex; gap: 8px;">
+        <button id="modalEditBtn" class="secondary btn-sm">Edit Configuration</button>
+        <button class="btn btn-sm" onclick="closeModal()">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Delete Confirmation -->
+<div id="deleteModal" class="modal-backdrop">
+  <div class="modal-content" style="max-width: 440px;">
+    <h3 style="font-size: 17px; font-weight: 750; margin: 0 0 8px; color: #dc2626;">Confirm Deletion</h3>
+    <p style="font-size: 13.5px; color: #475569; margin: 0 0 16px; line-height: 1.5;">
+      Are you sure you want to delete location <strong id="deleteTargetName"></strong> (<span id="deleteTargetId" class="code-font"></span>)?
+      This action removes the location and its EVSEs from MongoDB.
+    </p>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button class="outline btn-sm" onclick="closeDeleteModal()">Cancel</button>
+      <button id="confirmDeleteBtn" class="danger btn-sm">Delete Location</button>
+    </div>
+  </div>
+</div>
+
+<!-- Floating Toast Notification -->
+<div id="toast" class="toast">Notification text</div>
+
+<script>
+  // State variables
+  let locationsData = [];
+  let tariffsData = [];
+  let isEditing = false;
+  let editingId = null;
+  let modalLocationObj = null;
+  let deleteTargetId = null;
+
+  // Active EVSEs state in builder
+  let evseList = [];
+
+  // OCPI 2.2.1 Enums
+  const standardOptions = [
+    { value: "IEC_62196_T2", label: "IEC_62196_T2 (Type 2 AC) - Default" },
+    { value: "IEC_62196_T2_COMBO", label: "IEC_62196_T2_COMBO (CCS2 Combo DC)" },
+    { value: "CHADEMO", label: "CHADEMO (DC)" },
+    { value: "CHAOJI", label: "CHAOJI (Ultra Fast DC)" },
+    { value: "GBT_DC", label: "GBT_DC (China DC)" },
+    { value: "GBT_AC", label: "GBT_AC (China AC)" },
+    { value: "IEC_62196_T1", label: "IEC_62196_T1 (Type 1 J1772 AC)" },
+    { value: "IEC_62196_T1_COMBO", label: "IEC_62196_T1_COMBO (CCS1 Combo DC)" },
+    { value: "DOMESTIC_A", label: "DOMESTIC_A (US Plug)" },
+    { value: "DOMESTIC_B", label: "DOMESTIC_B" },
+    { value: "DOMESTIC_C", label: "DOMESTIC_C (Europlug)" },
+    { value: "DOMESTIC_D", label: "DOMESTIC_D (India 3-pin)" },
+    { value: "DOMESTIC_E", label: "DOMESTIC_E (French)" },
+    { value: "DOMESTIC_F", label: "DOMESTIC_F (Schuko)" },
+    { value: "DOMESTIC_G", label: "DOMESTIC_G (UK 3-pin)" },
+    { value: "TESLA_S", label: "TESLA_S (Supercharger)" },
+    { value: "PANTOGRAPH_BOTTOM_UP", label: "PANTOGRAPH_BOTTOM_UP (Bus Charging)" }
+  ];
+
+  const statusOptions = [
+    "AVAILABLE", "BLOCKED", "CHARGING", "INOPERATIVE", "OUTOFORDER", "PLANNED", "REMOVED", "RESERVED", "UNKNOWN"
+  ];
+
+  const powerTypeOptions = [
+    "AC_1_PHASE", "AC_2_PHASE", "AC_2_PHASE_SPLIT", "AC_3_PHASE", "DC"
+  ];
+
+  // Initialize
+  async function init() {
+    generateNewLocationId();
+    await loadSimulatorConfig();
+    await fetchTariffsList();
+    await fetchLocationsList();
+    
+    // Default: 1 EVSE with 1 Connector
+    initDefaultEvse();
+    onFormChange();
+  }
+
+  function initDefaultEvse() {
+    evseList = [{
+      uid: generateEvseUid(),
+      status: "AVAILABLE",
+      evse_id: "",
+      physical_reference: "",
+      floor_level: "",
+      connectors: [{
+        id: "1",
+        standard: "IEC_62196_T2",
+        format: "SOCKET",
+        power_type: "AC_3_PHASE",
+        max_voltage: 400,
+        max_amperage: 32,
+        max_electric_power: 22000,
+        tariff_ids: ["TAR-1"]
+      }]
+    }];
+    renderEvseCards();
+  }
+
+  function generateNewLocationId() {
+    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+    document.getElementById("locId").value = `LOC-${rand}`;
+    document.getElementById("badgeLocId").textContent = document.getElementById("locId").value;
+  }
+
+  function generateEvseUid() {
+    return `EVSE-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  }
+
+  // Load defaults from server config
+  async function loadSimulatorConfig() {
+    try {
+      const res = await fetch("/api/cpo/config");
+      if (res.ok) {
+        const config = await res.json();
+        if (config.countryCode) document.getElementById("locCountryCode").value = config.countryCode;
+        if (config.partyId) document.getElementById("locPartyId").value = config.partyId;
+        if (config.timeZone) document.getElementById("locTimeZone").value = config.timeZone;
+        if (config.businessName) document.getElementById("locOperator").value = config.businessName;
+      }
+    } catch (e) {
+      console.warn("Could not load CPO config", e);
+    }
+  }
+
+  // Fetch Tariffs
+  async function fetchTariffsList() {
+    try {
+      const res = await fetch("/api/cpo/tariffs");
+      if (res.ok) {
+        const data = await res.json();
+        tariffsData = data.tariffs || [];
+        populateTariffDropdowns();
+      }
+    } catch (e) {
+      console.warn("Could not load tariffs", e);
+    }
+  }
+
+  function populateTariffDropdowns() {
+    const select = document.getElementById("savedTariffSelect");
+    if (!tariffsData.length) {
+      select.innerHTML = `<option value="">No saved tariffs found</option>`;
+      return;
+    }
+    select.innerHTML = tariffsData.map(t => `
+      <option value="${t.id}">${t.id} (${t.currency}): ${t.price_summary || "Custom Pricing"}</option>
+    `).join("");
+  }
+
+  function onTariffModeChange() {
+    const mode = document.getElementById("tariffModeSelect").value;
+    const existingWrap = document.getElementById("existingTariffWrap");
+    if (mode === "EXISTING") {
+      existingWrap.style.display = "block";
+      onSavedTariffSelected();
+    } else {
+      existingWrap.style.display = "none";
+      document.getElementById("tId").value = `TAR-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    }
+    onFormChange();
+  }
+
+  function onSavedTariffSelected() {
+    const id = document.getElementById("savedTariffSelect").value;
+    const tariff = tariffsData.find(t => t.id === id);
+    if (tariff) {
+      document.getElementById("tId").value = tariff.id;
+      document.getElementById("tCurrency").value = tariff.currency || "INR";
+      document.getElementById("tType").value = tariff.type || "REGULAR";
+
+      // Extract pricing
+      let energyPrice = 0, timePrice = 0, flatPrice = 0, parkPrice = 0;
+      for (const elem of (tariff.elements || [])) {
+        for (const comp of (elem.price_components || [])) {
+          if (comp.type === "ENERGY") energyPrice = comp.price;
+          if (comp.type === "TIME") timePrice = comp.price;
+          if (comp.type === "FLAT") flatPrice = comp.price;
+          if (comp.type === "PARKING_TIME") parkPrice = comp.price;
+        }
+      }
+      document.getElementById("tEnergy").value = energyPrice;
+      document.getElementById("tTime").value = timePrice;
+      document.getElementById("tFlat").value = flatPrice;
+      document.getElementById("tParking").value = parkPrice;
+
+      applyTariffToAllConnectors(tariff.id);
+    }
+    onFormChange();
+  }
+
+  function applyTariffToAllConnectors(targetTariffId) {
+    const id = targetTariffId || document.getElementById("tId").value.trim() || "TAR-1";
+    evseList.forEach(e => {
+      e.connectors.forEach(c => {
+        c.tariff_ids = [id];
+      });
+    });
+    renderEvseCards();
+    showToast(`Assigned Tariff '${id}' to all connectors.`);
+    onFormChange();
+  }
+
+  // Fetch Locations
+  async function fetchLocationsList() {
+    try {
+      const res = await fetch("/api/cpo/locations");
+      if (res.ok) {
+        const data = await res.json();
+        locationsData = data.locations || [];
+        updateStats();
+        renderLocationsTable();
+      }
+    } catch (e) {
+      console.error("Error fetching locations", e);
+    }
+  }
+
+  function updateStats() {
+    const total = locationsData.length;
+    let evses = 0;
+    let connectors = 0;
+    let published = 0;
+
+    locationsData.forEach(l => {
+      evses += l.evsesCount || (l.evses ? l.evses.length : 0);
+      connectors += l.connectorsCount || (l.evses ? l.evses.reduce((a, e) => a + (e.connectors ? e.connectors.length : 0), 0) : 0);
+      if (l.publish) published++;
+    });
+
+    document.getElementById("statLocations").textContent = total;
+    document.getElementById("statEvses").textContent = evses;
+    document.getElementById("statConnectors").textContent = connectors;
+    document.getElementById("statPublished").textContent = published;
+    document.getElementById("locationCountTab").textContent = total;
+  }
+
+  function renderLocationsTable() {
+    const tbody = document.getElementById("locationsTableBody");
+    const search = document.getElementById("listSearch").value.toLowerCase().trim();
+    const filterPub = document.getElementById("listPublishFilter").value;
+
+    const filtered = locationsData.filter(loc => {
+      if (filterPub === "PUBLISHED" && !loc.publish) return false;
+      if (filterPub === "UNPUBLISHED" && loc.publish) return false;
+      if (search) {
+        const str = `${loc.name} ${loc.city} ${loc.id} ${loc.country}`.toLowerCase();
+        if (!str.includes(search)) return false;
+      }
+      return true;
+    });
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--muted); padding: 36px;">No charging locations found. Click "+ Create Location" to build one.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(loc => {
+      const isPub = loc.publish;
+      const pubBadge = isPub
+        ? `<span class="badge ok dot">Published</span>`
+        : `<span class="badge neutral">Draft</span>`;
+      
+      const timeStr = loc.last_updated ? new Date(loc.last_updated).toLocaleString() : "—";
+      const evsesCount = loc.evsesCount || (loc.evses?.length || 0);
+      const connCount = loc.connectorsCount || (loc.evses ? loc.evses.reduce((a, e) => a + (e.connectors?.length || 0), 0) : 0);
+
+      return `
+        <tr>
+          <td>
+            <strong>${escapeHtml(loc.name)}</strong>
+            <div style="font-size: 11px; color: var(--muted);">${escapeHtml(loc.address)}</div>
+          </td>
+          <td>
+            <span class="code-font">${loc.id}</span>
+            <button class="outline btn-sm" style="padding: 2px 6px; margin-left: 4px;" onclick="copyText('${loc.id}')">Copy</button>
+          </td>
+          <td>${escapeHtml(loc.city)}, ${escapeHtml(loc.country)}</td>
+          <td><span class="badge purple">${evsesCount} EVSEs</span></td>
+          <td><span class="badge info">${connCount} Connectors</span></td>
+          <td>${pubBadge}</td>
+          <td style="font-size: 11.5px; color: #475569;">${timeStr}</td>
+          <td style="text-align: right; white-space: nowrap;">
+            <button class="outline btn-sm" onclick="viewLocationModal('${loc.id}')">View</button>
+            <button class="secondary btn-sm" onclick="editLocation('${loc.id}')">Edit</button>
+            <button class="outline btn-sm" onclick="duplicateLocation('${loc.id}')">Duplicate</button>
+            <button class="danger btn-sm" onclick="promptDelete('${loc.id}', '${escapeHtml(loc.name)}')">Delete</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  // Navigation Switch
+  function switchMainView(view) {
+    if (view === "LIST") {
+      document.getElementById("viewList").style.display = "block";
+      document.getElementById("viewBuilder").style.display = "none";
+      document.getElementById("tabBtnList").classList.add("active");
+      document.getElementById("tabBtnBuilder").classList.remove("active");
+    } else {
+      document.getElementById("viewList").style.display = "none";
+      document.getElementById("viewBuilder").style.display = "block";
+      document.getElementById("tabBtnList").classList.remove("active");
+      document.getElementById("tabBtnBuilder").classList.add("active");
+      onFormChange();
+    }
+  }
+
+  function startNewLocation() {
+    resetBuilderForm();
+    switchMainView("BUILDER");
+  }
+
+  function cancelEditMode() {
+    resetBuilderForm();
+  }
+
+  function resetBuilderForm() {
+    isEditing = false;
+    editingId = null;
+    document.getElementById("editingBanner").style.display = "none";
+    document.getElementById("saveBtnText").textContent = "Create Location";
+    document.getElementById("builderTabLabel").textContent = "Location Builder (+ New)";
+    document.getElementById("locId").readOnly = true;
+
+    generateNewLocationId();
+    document.getElementById("locName").value = "";
+    document.getElementById("locAddress").value = "";
+    document.getElementById("locCity").value = "";
+    document.getElementById("locPostal").value = "";
+    document.getElementById("locState").value = "";
+    document.getElementById("locCountry").value = "IND";
+    document.getElementById("locLat").value = "12.9716";
+    document.getElementById("locLon").value = "77.5946";
+    document.getElementById("locTimeZone").value = "Asia/Kolkata";
+    document.getElementById("locCountryCode").value = "IN";
+    document.getElementById("locPartyId").value = "CZK";
+    document.getElementById("locPublish").value = "true";
+    document.getElementById("locParkingType").value = "";
+    document.getElementById("locOperator").value = "OCPI Test Simulator";
+    document.getElementById("loc247").checked = true;
+
+    initDefaultEvse();
+    onFormChange();
+  }
+
+  function setCoordinates(lat, lon, city) {
+    document.getElementById("locLat").value = lat;
+    document.getElementById("locLon").value = lon;
+    if (city && !document.getElementById("locCity").value) {
+      document.getElementById("locCity").value = city;
+    }
+    onFormChange();
+  }
+
+  // EVSE & Connector Manipulation
+  function addEvse() {
+    const uid = generateEvseUid();
+    const tariffId = document.getElementById("tId").value.trim() || "TAR-1";
+    evseList.push({
+      uid,
+      status: "AVAILABLE",
+      evse_id: "",
+      physical_reference: "",
+      floor_level: "",
+      connectors: [{
+        id: "1",
+        standard: "IEC_62196_T2",
+        format: "SOCKET",
+        power_type: "AC_3_PHASE",
+        max_voltage: 400,
+        max_amperage: 32,
+        max_electric_power: 22000,
+        tariff_ids: [tariffId]
+      }]
+    });
+    renderEvseCards();
+    onFormChange();
+  }
+
+  function removeEvse(index) {
+    if (evseList.length <= 1) {
+      alert("A location must contain at least one EVSE.");
+      return;
+    }
+    evseList.splice(index, 1);
+    renderEvseCards();
+    onFormChange();
+  }
+
+  function addConnector(evseIdx) {
+    const evse = evseList[evseIdx];
+    const newId = String(evse.connectors.length + 1);
+    const tariffId = document.getElementById("tId").value.trim() || "TAR-1";
+    evse.connectors.push({
+      id: newId,
+      standard: "IEC_62196_T2_COMBO",
+      format: "CABLE",
+      power_type: "DC",
+      max_voltage: 500,
+      max_amperage: 125,
+      max_electric_power: 60000,
+      tariff_ids: [tariffId]
+    });
+    renderEvseCards();
+    onFormChange();
+  }
+
+  function removeConnector(evseIdx, connIdx) {
+    const evse = evseList[evseIdx];
+    if (evse.connectors.length <= 1) {
+      alert("Each EVSE must have at least one connector.");
+      return;
+    }
+    evse.connectors.splice(connIdx, 1);
+    renderEvseCards();
+    onFormChange();
+  }
+
+  function autoGenerateEvseId(evseIdx) {
+    const country = (document.getElementById("locCountryCode").value || "IN").trim();
+    const party = (document.getElementById("locPartyId").value || "CZK").trim();
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    evseList[evseIdx].evse_id = `+91*${party}*E${rand}`;
+    renderEvseCards();
+    onFormChange();
+  }
+
+  // Render EVSE and Connector DOM Cards
+  function renderEvseCards() {
+    const container = document.getElementById("evseContainer");
+    container.innerHTML = evseList.map((evse, eIdx) => {
+      const connectorsHtml = evse.connectors.map((conn, cIdx) => {
+        const warningInfo = checkPowerInconsistency(conn.max_voltage, conn.max_amperage, conn.power_type, conn.max_electric_power);
+        const warningDisplay = warningInfo.isConsistent ? "none" : "block";
+
+        const standardOpts = standardOptions.map(opt => `
+          <option value="${opt.value}" ${conn.standard === opt.value ? 'selected' : ''}>${opt.label}</option>
+        `).join("");
+
+        const powerOpts = powerTypeOptions.map(p => `
+          <option value="${p}" ${conn.power_type === p ? 'selected' : ''}>${p}</option>
+        `).join("");
+
+        return `
+          <div class="connector-box">
+            <div class="connector-top">
+              <span class="connector-title">
+                🔌 Connector #${cIdx + 1} (ID: ${conn.id})
+              </span>
+              <div>
+                ${evse.connectors.length > 1 ? `<button type="button" class="danger btn-sm" onclick="removeConnector(${eIdx}, ${cIdx})">Remove Connector</button>` : ''}
+              </div>
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group">
+                <label>Connector ID <span class="req">*</span></label>
+                <input value="${conn.id}" class="code-font" oninput="updateConnectorField(${eIdx}, ${cIdx}, 'id', this.value)">
+              </div>
+              <div class="form-group">
+                <label>Standard (ConnectorType) <span class="req">*</span></label>
+                <select onchange="updateConnectorField(${eIdx}, ${cIdx}, 'standard', this.value)">
+                  ${standardOpts}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Format <span class="req">*</span></label>
+                <select onchange="updateConnectorField(${eIdx}, ${cIdx}, 'format', this.value)">
+                  <option value="SOCKET" ${conn.format === 'SOCKET' ? 'selected' : ''}>SOCKET</option>
+                  <option value="CABLE" ${conn.format === 'CABLE' ? 'selected' : ''}>CABLE</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-4">
+              <div class="form-group">
+                <label>Power Type <span class="req">*</span></label>
+                <select onchange="updateConnectorField(${eIdx}, ${cIdx}, 'power_type', this.value)">
+                  ${powerOpts}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Max Voltage (V) <span class="req">*</span></label>
+                <input type="number" min="1" value="${conn.max_voltage}" oninput="updateConnectorField(${eIdx}, ${cIdx}, 'max_voltage', this.value)">
+              </div>
+              <div class="form-group">
+                <label>Max Amperage (A) <span class="req">*</span></label>
+                <input type="number" min="1" value="${conn.max_amperage}" oninput="updateConnectorField(${eIdx}, ${cIdx}, 'max_amperage', this.value)">
+              </div>
+              <div class="form-group">
+                <label>Max Power (Watts)</label>
+                <input type="number" min="0" value="${conn.max_electric_power || ''}" placeholder="e.g. 22000" oninput="updateConnectorField(${eIdx}, ${cIdx}, 'max_electric_power', this.value)">
+              </div>
+            </div>
+
+            <div class="power-warning" id="powWarn_${eIdx}_${cIdx}" style="display: ${warningDisplay};">
+              ⚠️ ${warningInfo.message || ""}
+            </div>
+
+            <div class="form-group" style="margin-top: 8px;">
+              <label>Assigned Tariff ID</label>
+              <input value="${(conn.tariff_ids && conn.tariff_ids[0]) || ''}" placeholder="e.g. TAR-1" oninput="updateConnectorTariff(${eIdx}, ${cIdx}, this.value)">
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      const statusOpts = statusOptions.map(st => `
+        <option value="${st}" ${evse.status === st ? 'selected' : ''}>${st}</option>
+      `).join("");
+
+      return `
+        <div class="evse-card">
+          <div class="evse-top">
+            <div class="evse-title">
+              <span class="badge purple">EVSE #${eIdx + 1}</span>
+              <span class="code-font" style="font-size: 13px;">${evse.uid}</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="outline btn-sm" onclick="copyText('${evse.uid}')">Copy UID</button>
+              ${evseList.length > 1 ? `<button type="button" class="danger btn-sm" onclick="removeEvse(${eIdx})">Remove EVSE</button>` : ''}
+            </div>
+          </div>
+
+          <div class="grid-3">
+            <div class="form-group">
+              <label>EVSE UID <span class="req">*</span></label>
+              <input value="${evse.uid}" class="code-font" oninput="updateEvseField(${eIdx}, 'uid', this.value)">
+            </div>
+            <div class="form-group">
+              <label>EVSE Status <span class="req">*</span></label>
+              <select onchange="updateEvseField(${eIdx}, 'status', this.value)">
+                ${statusOpts}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Compliant evse_id <span class="sub-label">(DIN/eMI3)</span></label>
+              <div class="input-copy-group">
+                <input value="${evse.evse_id || ''}" placeholder="+91*CZK*E0001" oninput="updateEvseField(${eIdx}, 'evse_id', this.value)">
+                <button type="button" class="outline btn-sm" onclick="autoGenerateEvseId(${eIdx})">Gen</button>
+              </div>
+            </div>
+          </div>
+
+          <details style="margin-bottom: 14px; font-size: 12.5px;">
+            <summary style="cursor: pointer; color: var(--primary); font-weight: 650; margin-bottom: 8px;">
+              + Advanced EVSE Settings (Floor Level, Physical Ref, Capabilities)
+            </summary>
+            <div class="grid-2" style="margin-top: 10px;">
+              <div class="form-group">
+                <label>Physical Reference</label>
+                <input value="${evse.physical_reference || ''}" placeholder="e.g. Bay 4B" oninput="updateEvseField(${eIdx}, 'physical_reference', this.value)">
+              </div>
+              <div class="form-group">
+                <label>Floor Level</label>
+                <input value="${evse.floor_level || ''}" placeholder="e.g. -1" oninput="updateEvseField(${eIdx}, 'floor_level', this.value)">
+              </div>
+            </div>
+          </details>
+
+          <!-- Connectors Header inside this EVSE -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0 8px;">
+            <div style="font-size: 13px; font-weight: 700; color: #1e293b;">
+              Connectors (${evse.connectors.length})
+            </div>
+            <button type="button" class="btn secondary btn-sm" onclick="addConnector(${eIdx})">
+              + Add Connector
+            </button>
+          </div>
+
+          ${connectorsHtml}
+        </div>
+      `;
+    }).join("");
+  }
+
+  function updateEvseField(eIdx, field, val) {
+    evseList[eIdx][field] = val;
+    onFormChange();
+  }
+
+  function updateConnectorField(eIdx, cIdx, field, val) {
+    const conn = evseList[eIdx].connectors[cIdx];
+    if (['max_voltage', 'max_amperage', 'max_electric_power'].includes(field)) {
+      conn[field] = val ? Number(val) : null;
+    } else {
+      conn[field] = val;
+    }
+    
+    // Live update power warning
+    const warnBox = document.getElementById(`powWarn_${eIdx}_${cIdx}`);
+    if (warnBox) {
+      const warningInfo = checkPowerInconsistency(conn.max_voltage, conn.max_amperage, conn.power_type, conn.max_electric_power);
+      warnBox.style.display = warningInfo.isConsistent ? "none" : "block";
+      warnBox.textContent = `⚠️ ${warningInfo.message || ""}`;
+    }
+
+    onFormChange();
+  }
+
+  function updateConnectorTariff(eIdx, cIdx, val) {
+    evseList[eIdx].connectors[cIdx].tariff_ids = val ? [val.trim()] : [];
+    onFormChange();
+  }
+
+  function checkPowerInconsistency(v, a, type, p) {
+    if (!v || !a || !p) return { isConsistent: true };
+    const voltage = Number(v);
+    const amperage = Number(a);
+    const power = Number(p);
+
+    let expected = 0;
+    if (type === "AC_3_PHASE") {
+      expected = Math.round(Math.sqrt(3) * voltage * amperage);
+    } else {
+      expected = Math.round(voltage * amperage);
+    }
+
+    const margin = expected * 0.25;
+    if (Math.abs(power - expected) > margin) {
+      return {
+        isConsistent: false,
+        message: `Expected ~${expected.toLocaleString()} W for ${voltage}V / ${amperage}A (${type}). You entered ${power.toLocaleString()} W.`
+      };
+    }
+    return { isConsistent: true };
+  }
+
+  // Live Sync & Validation
+  function onFormChange() {
+    updateTariffSummary();
+    renderHierarchyTree();
+    renderJsonPreview();
+    runLiveValidation();
+  }
+
+  function updateTariffSummary() {
+    const currency = document.getElementById("tCurrency").value.trim() || "INR";
+    const currSym = currency === "INR" ? "₹" : (currency === "EUR" ? "€" : (currency === "USD" ? "$" : `${currency} `));
+    const e = Number(document.getElementById("tEnergy").value) || 0;
+    const t = Number(document.getElementById("tTime").value) || 0;
+    const f = Number(document.getElementById("tFlat").value) || 0;
+    const p = Number(document.getElementById("tParking").value) || 0;
+
+    const parts = [];
+    if (e > 0) parts.push(`${currSym}${e}/kWh`);
+    if (t > 0) parts.push(`${currSym}${t}/min`);
+    if (f > 0) parts.push(`${currSym}${f} session fee`);
+    if (p > 0) parts.push(`${currSym}${p}/hr parking`);
+
+    const summary = parts.join(" + ") || "Free Charging";
+    document.getElementById("tariffSummaryBadge").textContent = summary;
+    document.getElementById("tariffFormulaDisplay").textContent = summary;
+  }
+
+  function buildLocationPayloadFromForm() {
+    const locId = document.getElementById("locId").value.trim() || `LOC-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+    const name = document.getElementById("locName").value.trim();
+    const address = document.getElementById("locAddress").value.trim();
+    const city = document.getElementById("locCity").value.trim();
+    const postal = document.getElementById("locPostal").value.trim();
+    const state = document.getElementById("locState").value.trim();
+    const country = document.getElementById("locCountry").value.trim().toUpperCase() || "IND";
+    const lat = document.getElementById("locLat").value.trim();
+    const lon = document.getElementById("locLon").value.trim();
+    const timeZone = document.getElementById("locTimeZone").value.trim() || "Asia/Kolkata";
+    const countryCode = document.getElementById("locCountryCode").value.trim().toUpperCase() || "IN";
+    const partyId = document.getElementById("locPartyId").value.trim().toUpperCase() || "CZK";
+    const publish = document.getElementById("locPublish").value === "true";
+    const parkingType = document.getElementById("locParkingType").value || null;
+    const operator = document.getElementById("locOperator").value.trim();
+    const is247 = document.getElementById("loc247").checked;
+
+    const tariffId = document.getElementById("tId").value.trim() || "TAR-1";
+
+    const payload = {
+      country_code: countryCode,
+      party_id: partyId,
+      id: locId,
+      publish: publish,
+      publish_allowed_to: [],
+      name: name,
+      address: address,
+      city: city,
+      postal_code: postal || null,
+      state: state || null,
+      country: country,
+      coordinates: {
+        latitude: lat,
+        longitude: lon,
+      },
+      parking_type: parkingType,
+      evses: evseList.map(e => ({
+        uid: e.uid,
+        evse_id: e.evse_id || null,
+        status: e.status,
+        capabilities: ["REMOTE_START_STOP_CAPABLE", "RESERVABLE"],
+        coordinates: {
+          latitude: lat,
+          longitude: lon,
+        },
+        connectors: e.connectors.map(c => ({
+          id: c.id,
+          standard: c.standard,
+          format: c.format,
+          power_type: c.power_type,
+          max_voltage: Number(c.max_voltage) || 400,
+          max_amperage: Number(c.max_amperage) || 32,
+          max_electric_power: c.max_electric_power ? Number(c.max_electric_power) : null,
+          tariff_ids: c.tariff_ids && c.tariff_ids.length ? c.tariff_ids : [tariffId],
+          last_updated: new Date().toISOString()
+        })),
+        physical_reference: e.physical_reference || null,
+        floor_level: e.floor_level || null,
+        last_updated: new Date().toISOString()
+      })),
+      time_zone: timeZone,
+      opening_times: {
+        twentyfourseven: is247,
+        regular_hours: []
+      },
+      operator: operator ? { name: operator } : null,
+      last_updated: new Date().toISOString()
+    };
+
+    // If inline tariff requested
+    const e = Number(document.getElementById("tEnergy").value) || 0;
+    const t = Number(document.getElementById("tTime").value) || 0;
+    const f = Number(document.getElementById("tFlat").value) || 0;
+    const p = Number(document.getElementById("tParking").value) || 0;
+    const currency = document.getElementById("tCurrency").value.trim() || "INR";
+    const tariffType = document.getElementById("tType").value || "REGULAR";
+
+    const priceComponents = [];
+    if (e > 0) priceComponents.push({ type: "ENERGY", price: e, step_size: 1000 });
+    if (t > 0) priceComponents.push({ type: "TIME", price: t, step_size: 60 });
+    if (f > 0) priceComponents.push({ type: "FLAT", price: f, step_size: 1 });
+    if (p > 0) priceComponents.push({ type: "PARKING_TIME", price: p, step_size: 3600 });
+    if (!priceComponents.length) priceComponents.push({ type: "FLAT", price: 0, step_size: 1 });
+
+    payload.inlineTariff = {
+      country_code: countryCode,
+      party_id: partyId,
+      id: tariffId,
+      currency: currency,
+      type: tariffType,
+      elements: [{ price_components: priceComponents }]
+    };
+
+    return payload;
+  }
+
+  function renderHierarchyTree() {
+    const tree = document.getElementById("hierarchyTree");
+    const locName = document.getElementById("locName").value.trim() || "Untitled Location";
+    const locId = document.getElementById("locId").value.trim();
+    const city = document.getElementById("locCity").value.trim() || "City";
+    const tariffId = document.getElementById("tId").value.trim() || "TAR-1";
+
+    let html = `
+      <div class="tree-node level-0">
+        📍 <strong>${escapeHtml(locName)}</strong> <span style="font-size:11px; opacity:0.8;">(${locId} · ${escapeHtml(city)})</span>
+      </div>
+    `;
+
+    evseList.forEach((e, eIdx) => {
+      html += `
+        <div class="tree-node level-1">
+          ⚡ <strong>EVSE #${eIdx + 1}:</strong> ${e.uid}
+          <span class="badge ${e.status === 'AVAILABLE' ? 'ok' : 'info'}" style="font-size:10px; margin-left: 6px;">${e.status}</span>
+        </div>
+      `;
+      e.connectors.forEach((c, cIdx) => {
+        const assignedTariff = (c.tariff_ids && c.tariff_ids[0]) || tariffId;
+        html += `
+          <div class="tree-node level-2">
+            🔌 <strong>Connector #${c.id}:</strong> ${c.standard} · ${c.power_type} · ${c.max_voltage}V/${c.max_amperage}A
+            <span class="badge warn" style="font-size: 10px; margin-left: 6px;">${assignedTariff}</span>
+          </div>
+        `;
+      });
+    });
+
+    tree.innerHTML = html;
+  }
+
+  function renderJsonPreview() {
+    const payload = buildLocationPayloadFromForm();
+    const clean = JSON.parse(JSON.stringify(payload));
+    delete clean.inlineTariff; // Don't show UI helper in pure OCPI JSON
+    document.getElementById("jsonPreviewBox").textContent = JSON.stringify(clean, null, 2);
+  }
+
+  function copyJsonPreview() {
+    const text = document.getElementById("jsonPreviewBox").textContent;
+    copyText(text);
+  }
+
+  function runLiveValidation() {
+    const list = document.getElementById("validationList");
+    const checks = [];
+
+    const name = document.getElementById("locName").value.trim();
+    checks.push({ label: "Location Name provided", ok: Boolean(name) });
+
+    const addr = document.getElementById("locAddress").value.trim();
+    checks.push({ label: "Street Address provided", ok: Boolean(addr) });
+
+    const city = document.getElementById("locCity").value.trim();
+    checks.push({ label: "City provided", ok: Boolean(city) });
+
+    const country = document.getElementById("locCountry").value.trim();
+    checks.push({ label: "Country ISO-3 code (3 letters)", ok: /^[A-Z]{3}$/i.test(country) });
+
+    const cpoCode = document.getElementById("locCountryCode").value.trim();
+    checks.push({ label: "CPO Country Code (2 letters)", ok: /^[A-Z]{2}$/i.test(cpoCode) });
+
+    const party = document.getElementById("locPartyId").value.trim();
+    checks.push({ label: "CPO Party ID (3 chars)", ok: /^[A-Z0-9]{3}$/i.test(party) });
+
+    const lat = Number(document.getElementById("locLat").value);
+    const lon = Number(document.getElementById("locLon").value);
+    checks.push({ label: "Valid Coordinates (-90≤lat≤90, -180≤lon≤180)", ok: !isNaN(lat) && lat >= -90 && lat <= 90 && !isNaN(lon) && lon >= -180 && lon <= 180 });
+
+    const tz = document.getElementById("locTimeZone").value.trim();
+    let tzValid = false;
+    try { Intl.DateTimeFormat(undefined, { timeZone: tz }); tzValid = true; } catch(_) {}
+    checks.push({ label: `Valid IANA Time Zone (${tz})`, ok: tzValid });
+
+    checks.push({ label: "At least one EVSE configured", ok: evseList.length > 0 });
+
+    let allConnectorsOk = true;
+    evseList.forEach(e => {
+      if (!e.connectors || !e.connectors.length) allConnectorsOk = false;
+      e.connectors.forEach(c => {
+        if (!c.id || !c.max_voltage || !c.max_amperage) allConnectorsOk = false;
+      });
+    });
+    checks.push({ label: "Every EVSE has ≥ 1 valid Connector", ok: allConnectorsOk });
+
+    list.innerHTML = checks.map(c => `
+      <div class="val-item">
+        <span class="val-icon ${c.ok ? 'ok' : 'err'}">${c.ok ? '✓' : '✗'}</span>
+        <span style="color: ${c.ok ? '#1e293b' : '#dc2626'};">${c.label}</span>
+      </div>
+    `).join("");
+
+    return checks.every(c => c.ok);
+  }
+
+  function switchPreviewTab(tab) {
+    document.getElementById("pTabHierarchy").classList.toggle("active", tab === "HIERARCHY");
+    document.getElementById("pTabJson").classList.toggle("active", tab === "JSON");
+    document.getElementById("pTabVal").classList.toggle("active", tab === "VALIDATION");
+
+    document.getElementById("previewTabHierarchyContent").style.display = tab === "HIERARCHY" ? "block" : "none";
+    document.getElementById("previewTabJsonContent").style.display = tab === "JSON" ? "block" : "none";
+    document.getElementById("previewTabValContent").style.display = tab === "VALIDATION" ? "block" : "none";
+  }
+
+  // Submit Location Form
+  async function submitLocationForm() {
+    const errBox = document.getElementById("formErrorMessage");
+    errBox.style.display = "none";
+
+    const isValid = runLiveValidation();
+    if (!isValid) {
+      errBox.textContent = "Please fix the validation errors highlighted in the Validation tab before saving.";
+      errBox.style.display = "block";
+      switchPreviewTab("VALIDATION");
+      return;
+    }
+
+    const payload = buildLocationPayloadFromForm();
+    const btn = document.getElementById("saveLocationBtn");
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = "Saving to MongoDB…";
+
+    try {
+      const url = isEditing ? `/api/cpo/locations/${encodeURIComponent(editingId)}` : "/api/cpo/locations";
+      const method = isEditing ? "PUT" : "POST";
+
+      let res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.status === 404 && isEditing) {
+        res = await fetch(`/api/api/cpo/locations/${encodeURIComponent(editingId)}`, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      }
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || (data.details ? data.details.join("; ") : "Failed to save location."));
+      }
+
+      showToast(`Success! Location '${payload.name}' saved with ID ${data.locationId}.`);
+      await fetchLocationsList();
+      await fetchTariffsList();
+      switchMainView("LIST");
+      resetBuilderForm();
+
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.style.display = "block";
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+
+  // Edit Location
+  async function editLocation(id) {
+    try {
+      const res = await fetch(`/api/cpo/locations/${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error("Could not fetch location data");
+      const data = await res.json();
+      const loc = data.location;
+
+      isEditing = true;
+      editingId = loc.id;
+
+      document.getElementById("editingBanner").style.display = "flex";
+      document.getElementById("editingLocationName").textContent = `${loc.name} (${loc.id})`;
+      document.getElementById("saveBtnText").textContent = "Save Changes";
+      document.getElementById("builderTabLabel").textContent = `Editing (${loc.id})`;
+
+      document.getElementById("locId").value = loc.id;
+      document.getElementById("locId").readOnly = true;
+      document.getElementById("badgeLocId").textContent = loc.id;
+
+      document.getElementById("locName").value = loc.name || "";
+      document.getElementById("locAddress").value = loc.address || "";
+      document.getElementById("locCity").value = loc.city || "";
+      document.getElementById("locPostal").value = loc.postal_code || "";
+      document.getElementById("locState").value = loc.state || "";
+      document.getElementById("locCountry").value = loc.country || "IND";
+      document.getElementById("locLat").value = loc.coordinates?.latitude || "12.9716";
+      document.getElementById("locLon").value = loc.coordinates?.longitude || "77.5946";
+      document.getElementById("locTimeZone").value = loc.time_zone || "Asia/Kolkata";
+      document.getElementById("locCountryCode").value = loc.country_code || "IN";
+      document.getElementById("locPartyId").value = loc.party_id || "CZK";
+      document.getElementById("locPublish").value = String(loc.publish !== false);
+      document.getElementById("locParkingType").value = loc.parking_type || "";
+      document.getElementById("locOperator").value = loc.operator?.name || "";
+      document.getElementById("loc247").checked = Boolean(loc.opening_times?.twentyfourseven !== false);
+
+      evseList = (loc.evses || []).map(e => ({
+        uid: e.uid,
+        evse_id: e.evse_id || "",
+        status: e.status || "AVAILABLE",
+        physical_reference: e.physical_reference || "",
+        floor_level: e.floor_level || "",
+        connectors: (e.connectors || []).map(c => ({
+          id: c.id,
+          standard: c.standard || "IEC_62196_T2",
+          format: c.format || "SOCKET",
+          power_type: c.power_type || "AC_3_PHASE",
+          max_voltage: c.max_voltage || 400,
+          max_amperage: c.max_amperage || 32,
+          max_electric_power: c.max_electric_power || 22000,
+          tariff_ids: c.tariff_ids || []
+        }))
+      }));
+
+      renderEvseCards();
+      switchMainView("BUILDER");
+      onFormChange();
+
+    } catch (err) {
+      alert("Error loading location for edit: " + err.message);
+    }
+  }
+
+  // Duplicate Location
+  async function duplicateLocation(id) {
+    try {
+      const res = await fetch(`/api/cpo/locations/${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error("Could not fetch location data");
+      const data = await res.json();
+      const loc = data.location;
+
+      resetBuilderForm();
+
+      const newId = `LOC-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+      document.getElementById("locId").value = newId;
+      document.getElementById("badgeLocId").textContent = newId;
+      document.getElementById("locName").value = `${loc.name} (Copy)`;
+      document.getElementById("locAddress").value = loc.address || "";
+      document.getElementById("locCity").value = loc.city || "";
+      document.getElementById("locPostal").value = loc.postal_code || "";
+      document.getElementById("locState").value = loc.state || "";
+      document.getElementById("locCountry").value = loc.country || "IND";
+      document.getElementById("locLat").value = loc.coordinates?.latitude || "12.9716";
+      document.getElementById("locLon").value = loc.coordinates?.longitude || "77.5946";
+      document.getElementById("locTimeZone").value = loc.time_zone || "Asia/Kolkata";
+      document.getElementById("locCountryCode").value = loc.country_code || "IN";
+      document.getElementById("locPartyId").value = loc.party_id || "CZK";
+      document.getElementById("locPublish").value = String(loc.publish !== false);
+      document.getElementById("locParkingType").value = loc.parking_type || "";
+      document.getElementById("locOperator").value = loc.operator?.name || "";
+
+      // Clone EVSEs with new unique UIDs
+      evseList = (loc.evses || []).map((e, idx) => ({
+        uid: generateEvseUid(),
+        evse_id: e.evse_id ? `${e.evse_id}-C` : "",
+        status: e.status || "AVAILABLE",
+        physical_reference: e.physical_reference || "",
+        floor_level: e.floor_level || "",
+        connectors: (e.connectors || []).map((c, cIdx) => ({
+          id: String(cIdx + 1),
+          standard: c.standard,
+          format: c.format,
+          power_type: c.power_type,
+          max_voltage: c.max_voltage,
+          max_amperage: c.max_amperage,
+          max_electric_power: c.max_electric_power,
+          tariff_ids: c.tariff_ids || []
+        }))
+      }));
+
+      renderEvseCards();
+      switchMainView("BUILDER");
+      onFormChange();
+      showToast(`Duplicated into new location with generated ID ${newId}.`);
+
+    } catch (err) {
+      alert("Error duplicating location: " + err.message);
+    }
+  }
+
+  // Delete Location
+  function promptDelete(id, name) {
+    deleteTargetId = id;
+    document.getElementById("deleteTargetName").textContent = name;
+    document.getElementById("deleteTargetId").textContent = id;
+    document.getElementById("deleteModal").style.display = "flex";
+  }
+
+  function closeDeleteModal() {
+    document.getElementById("deleteModal").style.display = "none";
+    deleteTargetId = null;
+  }
+
+  document.getElementById("confirmDeleteBtn").addEventListener("click", async () => {
+    if (!deleteTargetId) return;
+    try {
+      let res = await fetch(`/api/cpo/locations/${encodeURIComponent(deleteTargetId)}`, {
+        method: "DELETE"
+      });
+      // Fallback in case backend process has not been restarted yet
+      if (res.status === 404) {
+        res = await fetch(`/api/api/cpo/locations/${encodeURIComponent(deleteTargetId)}`, {
+          method: "DELETE"
+        });
+      }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server returned HTTP ${res.status}`);
+      }
+      showToast("Location deleted successfully.");
+      closeDeleteModal();
+      await fetchLocationsList();
+    } catch (err) {
+      alert("Delete failed: " + err.message);
+    }
+  });
+
+  // View Location Modal
+  function viewLocationModal(id) {
+    const loc = locationsData.find(l => l.id === id);
+    if (!loc) return;
+    modalLocationObj = loc;
+
+    document.getElementById("modalTitle").textContent = loc.name;
+    document.getElementById("modalSubtitle").textContent = `${loc.id} · ${loc.city}, ${loc.country} · ${loc.evsesCount || (loc.evses?.length || 0)} EVSEs`;
+
+    const evsesSummary = (loc.evses || []).map((e, idx) => `
+      <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 13px;">⚡ EVSE #${idx + 1}: <span class="code-font">${e.uid}</span></strong>
+          <span class="badge ${e.status === 'AVAILABLE' ? 'ok' : 'info'}">${e.status}</span>
+        </div>
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
+          ${(e.connectors || []).length} Connectors: ${(e.connectors || []).map(c => `${c.standard} (${c.power_type})`).join(", ")}
+        </div>
+      </div>
+    `).join("");
+
+    document.getElementById("modalBody").innerHTML = `
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; font-size: 12.5px;">
+        <div><strong>Address:</strong> ${escapeHtml(loc.address)}</div>
+        <div><strong>Coordinates:</strong> ${loc.coordinates?.latitude}, ${loc.coordinates?.longitude}</div>
+        <div><strong>Time Zone:</strong> ${loc.time_zone}</div>
+        <div><strong>Publication:</strong> ${loc.publish ? "Published (Live on OCPI)" : "Unpublished"}</div>
+        <div><strong>Operator:</strong> ${loc.operator?.name || "—"}</div>
+        <div><strong>Last Updated:</strong> ${loc.last_updated}</div>
+      </div>
+
+      <h4 style="font-size: 14px; margin: 0 0 8px;">Configured EVSEs</h4>
+      ${evsesSummary}
+
+      <h4 style="font-size: 14px; margin: 16px 0 8px;">Full OCPI 2.2.1 JSON Payload</h4>
+      <pre class="code-block" style="max-height: 220px;">${escapeHtml(JSON.stringify(loc, null, 2))}</pre>
+    `;
+
+    document.getElementById("modalEditBtn").onclick = () => {
+      closeModal();
+      editLocation(loc.id);
+    };
+
+    document.getElementById("locationModal").style.display = "flex";
+  }
+
+  function closeModal() {
+    document.getElementById("locationModal").style.display = "none";
+    modalLocationObj = null;
+  }
+
+  function copyModalJson() {
+    if (modalLocationObj) {
+      copyText(JSON.stringify(modalLocationObj, null, 2));
+    }
+  }
+
+  // Utilities
+  function copyFromInput(inputId) {
+    const val = document.getElementById(inputId).value;
+    copyText(val);
+  }
+
+  function copyText(val) {
+    navigator.clipboard.writeText(val).then(() => {
+      showToast("Copied to clipboard: " + val.slice(0, 36));
+    });
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.style.display = "block";
+    setTimeout(() => {
+      toast.style.display = "none";
+    }, 2800);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // Start initialization
+  init();
+</script>
+</body>
+</html>

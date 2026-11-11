@@ -34,6 +34,7 @@ const ocpiConnectionProfileSchema = new mongoose.Schema(
     },
     remoteToken: { type: String, default: null }, // Stored credentials token (decrypted/redacted in views)
     localToken: { type: String, default: null },
+    bootstrapToken: { type: String, default: null }, // Initial Token A for incoming registration before handshake
     remoteVersionsUrl: { type: String, default: null },
     remoteCredentialsUrl: { type: String, default: null },
     partnerLocationsUrl: { type: String, default: null },

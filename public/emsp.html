@@ -1,22 +1,818 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OCPI eMSP Dashboard</title><style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:#f3f6fb;color:#172033}
-header{background:#14264d;color:white;padding:22px max(20px,calc((100% - 1100px)/2))}
-header h1{margin:0 0 7px;font-size:24px}header p{margin:0;color:#dbe5fb}
-nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px}nav a{color:white}
-main{max-width:1100px;margin:24px auto;padding:0 18px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;margin-bottom:18px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.stat{background:white;border:1px solid #e2e8f0;border-radius:10px;padding:18px}
-.muted{color:#64748b;line-height:1.5}.badge{display:inline-block;border-radius:999px;padding:6px 10px;background:#dcfce7;color:#166534;font-weight:700}
-button{padding:10px 14px;border:0;border-radius:7px;background:#2458d3;color:white;font-weight:650;cursor:pointer}
-input,select,textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:7px;margin:7px 0 14px;font:inherit}
-label{font-size:13px;font-weight:650}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#d1fae5;padding:14px;border-radius:8px}
-@media(max-width:700px){.grid{grid-template-columns:1fr}header{padding:20px}}
-</style></head>
-<body><header><h1>eMSP Dashboard</h1><p>OCPI 2.2.1 · Credentials handshake completed</p><nav><a href="/">Handshake setup</a><a href="/logs.html">Traffic logs</a><a href="/cpo.html">CPO dashboard</a></nav></header>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCPI eMSP Dashboard &amp; Locations Explorer</title>
+<style>
+  :root {
+    --primary: #2458d3;
+    --primary-hover: #1d4ed8;
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --text: #172033;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); }
+  
+  header {
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    color: white;
+    padding: 22px max(20px, calc((100% - 1300px) / 2));
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  header p { margin: 0; color: #94a3b8; font-size: 13.5px; }
+  nav { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  nav a {
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 550;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.15s ease;
+  }
+  nav a:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  nav a.active {
+    color: #ffffff;
+    background: #2563eb;
+    border-color: #3b82f6;
+  }
+  nav a.nav-swagger {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.25);
+    font-weight: 600;
+  }
+  nav a.nav-swagger:hover {
+    background: rgba(56, 189, 248, 0.16);
+    color: #7dd3fc;
+  }
+
+  main { max-width: 1300px; margin: 24px auto 48px; padding: 0 20px; }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 6px rgba(15,23,42,.03);
+  }
+  .stat-label { font-size: 12px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 22px; font-weight: 750; color: var(--text); margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+
+  /* Sections / Cards */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { font-size: 18px; font-weight: 750; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .panel-subtitle { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.bad { background: #fee2e2; color: #991b1b; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .badge.info { background: #dbeafe; color: #1e40af; }
+  .badge.purple { background: #f3e8ff; color: #6b21a8; }
+  .badge.neutral { background: #e2e8f0; color: #334155; }
+  .badge.dot::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* Buttons */
+  button, .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 15px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    text-decoration: none;
+  }
+  button:hover, .btn:hover { background: var(--primary-hover); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.6; cursor: wait; }
+  button.secondary, .btn.secondary { background: #e8edf6; color: #172033; }
+  button.secondary:hover, .btn.secondary:hover { background: #dbe3ef; }
+  button.outline { background: transparent; border: 1px solid var(--border); color: #334155; }
+  button.outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
+
+  /* Info Key-Value Grid */
+  .kv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .kv-box {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .kv-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .kv-value { font-size: 13px; font-weight: 600; color: #0f172a; word-break: break-all; }
+  .code-font { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  /* Table */
+  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: white; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+  th, td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  th { background: #f8fafc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: white;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  /* Locations Cards */
+  .locations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .location-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .location-card:hover {
+    box-shadow: 0 4px 14px rgba(15,23,42,0.06);
+    border-color: #cbd5e1;
+  }
+  .loc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .loc-title { font-size: 15px; font-weight: 750; color: #0f172a; margin: 0; }
+  .loc-address { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-bottom: 12px; }
+  .loc-geo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #334155;
+    margin-bottom: 12px;
+  }
+  .evse-list {
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  .evse-item {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .evse-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 650;
+    margin-bottom: 4px;
+  }
+  .connector-tags {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .connector-tag {
+    background: #e2e8f0;
+    color: #1e293b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  .empty-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.6;
+  }
+
+  /* Alerts */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+  .alert-info { background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; }
+
+  pre {
+    margin: 0;
+    padding: 12px;
+    background: #0f172a;
+    color: #d1fae5;
+    border-radius: 8px;
+    font-size: 12px;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  @media (max-width: 850px) {
+    .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .locations-grid { grid-template-columns: 1fr; }
+    header { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>eMSP Dashboard &amp; Locations Explorer</h1>
+  <p>OCPI 2.2.1 · Connected Partner Workspace (Operating as e-Mobility Service Provider)</p>
+  <nav>
+    <a href="/">← Handshake</a>
+    <a href="/cpo">CPO Dashboard</a>
+    <a href="/cpo-locations">Location Builder</a>
+    <a href="/emsp" class="active">eMSP Dashboard</a>
+    <a href="/logs">Traffic Logs</a>
+    <a href="/docs" target="_blank" class="nav-swagger">Swagger API Docs ↗</a>
+  </nav>
+</header>
+
 <main>
-<section class="card"><span class="badge" id="status">Checking connection…</span><h2 style="margin-bottom:6px">eMSP workspace</h2><p class="muted">This page is shown when the simulator role is eMSP and the credentials handshake succeeds.</p><div class="grid"><div class="stat"><div class="muted">Role</div><h2>eMSP</h2></div><div class="stat"><div class="muted">Protocol version</div><h2>OCPI 2.2.1</h2></div><div class="stat"><div class="muted">Party</div><h2 id="party">—</h2></div></div></section>
-<section class="card"><h2>Handshake details</h2><pre id="details">Loading connection details…</pre></section>
-<section class="card"><h2>eMSP actions</h2><p class="muted">The handshake is complete. The next eMSP workflow is to use the partner's discovered Commands endpoint to issue commands such as START_SESSION or STOP_SESSION. Command execution is not wired into this page yet.</p><button onclick="location.href='/logs.html'">Inspect handshake requests and responses</button></section>
+  <!-- Stats Row -->
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Connection Status</div>
+      <div class="stat-value">
+        <span id="connStatusBadge" class="badge dot ok">CONNECTED</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Partner Party</div>
+      <div class="stat-value" id="partyDisplay">DE / CCL</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Discovered Endpoints</div>
+      <div class="stat-value" id="endpointsCountDisplay">13 Endpoints</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Partner Locations</div>
+      <div class="stat-value" id="locationsCountDisplay">0 Loaded</div>
+    </div>
+  </section>
+
+  <div id="errorBanner" class="alert alert-error" style="display: none;"></div>
+
+  <!-- Handshake & Partner Details -->
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Handshake Details</h2>
+        <div class="panel-subtitle">Active credentials exchanged with partner CPO</div>
+      </div>
+      <div>
+        <button id="toggleRawJsonBtn" class="outline btn-sm">Toggle Raw JSON</button>
+      </div>
+    </div>
+
+    <div class="kv-grid">
+      <div class="kv-box">
+        <div class="kv-label">Partner Name &amp; Role</div>
+        <div class="kv-value" id="partnerNameDisplay">ChargeCloud UAT (CPO)</div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Discovered Versions URL</div>
+        <div class="kv-value code-font" id="versionsUrlDisplay">—</div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Credentials Endpoint</div>
+        <div class="kv-value code-font" id="credentialsUrlDisplay">—</div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Partner Locations SENDER URL</div>
+        <div class="kv-value code-font" id="locationsUrlDisplay">—</div>
+      </div>
+      <div class="kv-box" style="border: 1.5px solid #3b82f6; background: #f0f7ff;">
+        <div class="kv-label" style="color: #1d4ed8; display: flex; justify-content: space-between; align-items: center;">
+          <span>Simulator Auth Token (Inbound)</span>
+          <span id="simulatorTokenBadge" class="badge ok" style="font-size: 10px; padding: 2px 7px;">Active</span>
+        </div>
+        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
+          <span id="simulatorTokenDisplay" class="code-font" style="letter-spacing: 0.5px; color: #1e3a8a; font-weight: 700;">••••••••••••</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="copySimTokenBtn" class="btn btn-sm" style="background: #2563eb; color: white;" title="Copy raw token">Copy Raw</button>
+            <button id="copySimHeaderBtn" class="btn btn-sm" style="background: #1e40af; color: white;" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-top: 5px;">
+          OCPI 2.2.1 Header: <code id="simHeaderPreview">Authorization: Token &lt;base64&gt;</code> (Both Base64 &amp; Raw accepted)
+        </div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Partner Remote Token (Outbound)</div>
+        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
+          <span id="tokenDisplay" class="code-font" style="letter-spacing: 0.5px;">••••••••••••</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="copyTokenBtn" class="outline btn-sm" title="Copy raw token">Copy Raw</button>
+            <button id="copyPartnerHeaderBtn" class="outline btn-sm" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
+          Outbound Header: <code id="partnerHeaderPreview">Authorization: Token &lt;base64&gt;</code>
+        </div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Protocol Version</div>
+        <div class="kv-value">OCPI 2.2.1</div>
+      </div>
+    </div>
+
+    <div id="rawJsonWrap" style="display: none; margin-top: 16px;">
+      <pre id="rawJsonBox">Loading...</pre>
+    </div>
+  </section>
+
+  <!-- Discovered Endpoints Listing Screen -->
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Discovered Partner Endpoints</h2>
+        <div class="panel-subtitle">All modules advertised by the partner in the OCPI 2.2.1 version details response</div>
+      </div>
+      <div>
+        <span id="endpointCounter" class="badge info">13 Modules</span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input type="search" id="endpointSearch" class="search-input" placeholder="Filter endpoint by module (e.g. locations, commands, tokens)...">
+      <select id="endpointRoleFilter" class="search-input" style="flex: 0 0 160px;">
+        <option value="ALL">All Roles</option>
+        <option value="SENDER">SENDER</option>
+        <option value="RECEIVER">RECEIVER</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Role</th>
+            <th>Endpoint URL</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="endpointsTableBody">
+          <tr><td colspan="4" class="empty-state">Loading endpoints...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Location-Based Data Explorer -->
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Location-Based Data (EVSEs &amp; Chargers)</h2>
+        <div class="panel-subtitle">Fetch and inspect real-time charging stations from the partner's Locations SENDER endpoint</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="fetchLocationsBtn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Fetch Locations from Partner
+        </button>
+      </div>
+    </div>
+
+    <div class="toolbar" id="locationToolbar" style="display: none;">
+      <input type="search" id="locationSearch" class="search-input" placeholder="Search by name, city, address, or EVSE ID...">
+      <span id="locationsFilteredCount" class="badge neutral">0 Stations</span>
+    </div>
+
+    <div id="locationsContainer">
+      <div class="empty-state">
+        <div class="empty-icon">⚡</div>
+        <p style="font-weight: 650; color: #1e293b; margin-bottom: 4px;">No locations loaded yet</p>
+        <p style="font-size: 13px; max-width: 480px; margin: 0 auto 16px;">
+          Click <strong>Fetch Locations from Partner</strong> to send an authenticated OCPI <code>GET</code> request to the discovered Chargecloud Locations endpoint.
+        </p>
+      </div>
+    </div>
+  </section>
 </main>
+
 <script>
-(async()=>{try{const r=await fetch('/api/status');const s=await r.json();if(!r.ok)throw Error('Status request failed');if(s.status!=='CONNECTED'||s.role!=='EMSP'){location.replace('/');return}document.getElementById('status').textContent='CONNECTED';document.getElementById('party').textContent=(s.countryCode||'')+' / '+(s.partyId||'');document.getElementById('details').textContent=JSON.stringify({status:s.status,role:s.role,version:s.version,countryCode:s.countryCode,partyId:s.partyId,businessName:s.businessName,partnerRoles:s.partnerRoles},null,2)}catch(e){document.getElementById('status').textContent='Unable to verify connection';document.getElementById('details').textContent=e.message}})();
-</script></body></html>
+  let endpointsData = [];
+  let locationsData = [];
+  let rawStatus = null;
+  let rawToken = "";
+
+  const moduleColors = {
+    locations: "ok",
+    commands: "purple",
+    credentials: "info",
+    tokens: "warn",
+    sessions: "info",
+    cdrs: "ok",
+    tariffs: "warn"
+  };
+
+  function getBadgeClass(identifier) {
+    return moduleColors[identifier.toLowerCase()] || "neutral";
+  }
+
+  async function loadStatus() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const profileId = urlParams.get('profileId');
+      const fetchUrl = profileId ? `/api/status?profileId=${encodeURIComponent(profileId)}` : "/api/status?role=EMSP";
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error("Could not load simulator status (HTTP " + res.status + ")");
+      const data = await res.json();
+      rawStatus = data;
+      rawToken = data.remoteToken || "";
+
+      if (data.status !== "CONNECTED") {
+        document.getElementById("connStatusBadge").textContent = data.status || "DISCONNECTED";
+        document.getElementById("connStatusBadge").className = "badge dot " + (data.status === "ERROR" ? "bad" : "warn");
+      } else {
+        document.getElementById("connStatusBadge").textContent = "CONNECTED";
+        document.getElementById("connStatusBadge").className = "badge dot ok";
+      }
+
+      // Party display
+      const partner = data.partnerRoles?.[0] || {};
+      const party = (partner.country_code || "DE") + " / " + (partner.party_id || "CCL");
+      document.getElementById("partyDisplay").textContent = party;
+      document.getElementById("partnerNameDisplay").textContent = (partner.business_details?.name || "ChargeCloud UAT") + ` (${partner.role || "CPO"})`;
+
+      // URLs
+      document.getElementById("versionsUrlDisplay").textContent = data.remoteVersionsUrl || "—";
+      document.getElementById("credentialsUrlDisplay").textContent = data.remoteCredentialsUrl || "—";
+      document.getElementById("locationsUrlDisplay").textContent = data.partnerLocationsUrl || "—";
+
+      // Token Displays
+      const rawSimToken = data.activeSimulatorToken || data.localToken || data.bootstrapToken || "";
+      const simB64 = data.activeSimulatorTokenBase64 || (rawSimToken ? btoa(rawSimToken) : "");
+      const partnerB64 = data.remoteTokenBase64 || (rawToken ? btoa(rawToken) : "");
+
+      const simBadge = document.getElementById("simulatorTokenBadge");
+      if (simBadge) {
+        if (data.status === "CONNECTED" && data.localToken) {
+          simBadge.textContent = "Post-Handshake (Active)";
+          simBadge.className = "badge ok";
+        } else {
+          simBadge.textContent = "Pre-Handshake (Bootstrap)";
+          simBadge.className = "badge warn";
+        }
+      }
+
+      if (rawSimToken) {
+        document.getElementById("simulatorTokenDisplay").textContent =
+          rawSimToken.length > 16
+            ? rawSimToken.slice(0, 8) + "••••••••" + rawSimToken.slice(-6)
+            : rawSimToken;
+        document.getElementById("simHeaderPreview").textContent = `Authorization: Token ${simB64}`;
+      } else {
+        document.getElementById("simulatorTokenDisplay").textContent = "—";
+        document.getElementById("simHeaderPreview").textContent = "Authorization: Token <base64>";
+      }
+
+      if (rawToken) {
+        document.getElementById("tokenDisplay").textContent =
+          rawToken.length > 16
+            ? rawToken.slice(0, 8) + "••••••••" + rawToken.slice(-6)
+            : rawToken;
+        document.getElementById("partnerHeaderPreview").textContent = `Authorization: Token ${partnerB64}`;
+      } else {
+        document.getElementById("tokenDisplay").textContent = "—";
+        document.getElementById("partnerHeaderPreview").textContent = "Authorization: Token <base64>";
+      }
+
+      // Raw JSON
+      document.getElementById("rawJsonBox").textContent = JSON.stringify(data, null, 2);
+
+      // Discovered Endpoints
+      endpointsData = data.partnerEndpoints || [];
+      document.getElementById("endpointsCountDisplay").textContent = endpointsData.length + " Endpoints";
+      document.getElementById("endpointCounter").textContent = endpointsData.length + " Modules";
+      renderEndpoints();
+
+    } catch (err) {
+      showError("Status load error: " + err.message);
+    }
+  }
+
+  function renderEndpoints() {
+    const tbody = document.getElementById("endpointsTableBody");
+    const search = document.getElementById("endpointSearch").value.toLowerCase().trim();
+    const roleFilter = document.getElementById("endpointRoleFilter").value;
+
+    const filtered = endpointsData.filter(ep => {
+      if (roleFilter !== "ALL" && ep.role !== roleFilter) return false;
+      if (search && !ep.identifier.toLowerCase().includes(search) && !ep.url.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No matching endpoints found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(ep => {
+      const isLocations = ep.identifier.toLowerCase() === "locations" && ep.role === "SENDER";
+      const actionBtn = isLocations
+        ? `<button class="btn-sm" onclick="fetchLocations()">Fetch Locations</button>`
+        : `<button class="outline btn-sm" onclick="copyText('${ep.url}')">Copy URL</button>`;
+
+      return `
+        <tr>
+          <td><span class="badge ${getBadgeClass(ep.identifier)}">${ep.identifier.toUpperCase()}</span></td>
+          <td><span class="badge ${ep.role === 'SENDER' ? 'ok' : 'info'}">${ep.role}</span></td>
+          <td class="code-font" style="word-break: break-all;">${ep.url}</td>
+          <td style="text-align: right;">${actionBtn}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  async function fetchLocations() {
+    const btn = document.getElementById("fetchLocationsBtn");
+    const container = document.getElementById("locationsContainer");
+    const errorBanner = document.getElementById("errorBanner");
+    errorBanner.style.display = "none";
+
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = "Fetching Locations…";
+
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const profileId = urlParams.get('profileId');
+      const fetchUrl = profileId ? `/api/locations?profileId=${encodeURIComponent(profileId)}` : "/api/locations";
+      const res = await fetch(fetchUrl);
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || ("HTTP " + res.status));
+      }
+
+      locationsData = result.locations || [];
+      document.getElementById("locationsCountDisplay").textContent = locationsData.length + " Stations";
+      document.getElementById("locationToolbar").style.display = "flex";
+
+      renderLocations();
+
+    } catch (err) {
+      showError("Failed to fetch locations: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+
+  function renderLocations() {
+    const container = document.getElementById("locationsContainer");
+    const search = document.getElementById("locationSearch").value.toLowerCase().trim();
+
+    const filtered = locationsData.filter(loc => {
+      if (!search) return true;
+      const blob = JSON.stringify(loc).toLowerCase();
+      return blob.includes(search);
+    });
+
+    document.getElementById("locationsFilteredCount").textContent = filtered.length + " Stations";
+
+    if (!filtered.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p>No locations match your search query.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="locations-grid">
+        ${filtered.map(loc => {
+          const coordinates = loc.coordinates || {};
+          const geoStr = (coordinates.latitude && coordinates.longitude)
+            ? `${Number(coordinates.latitude).toFixed(4)}, ${Number(coordinates.longitude).toFixed(4)}`
+            : "—";
+
+          const evses = loc.evses || [];
+
+          return `
+            <div class="location-card">
+              <div class="loc-header">
+                <div>
+                  <h3 class="loc-title">${escapeHtml(loc.name || loc.id || "Unnamed Location")}</h3>
+                  <span class="badge neutral" style="font-size: 11px; margin-top: 3px;">ID: ${escapeHtml(loc.id || "—")}</span>
+                </div>
+                <span class="badge ${loc.parking_type ? 'info' : 'ok'}">${escapeHtml(loc.parking_type || "ACTIVE")}</span>
+              </div>
+
+              <div class="loc-address">
+                ${escapeHtml(loc.address || "—")}, ${escapeHtml(loc.city || "")} ${escapeHtml(loc.postal_code || "")}<br>
+                <strong>${escapeHtml(loc.country || "DE")}</strong>
+              </div>
+
+              <div class="loc-geo">
+                📍 <span>${geoStr}</span>
+                ${(coordinates.latitude && coordinates.longitude) ? `<a href="https://maps.google.com/?q=${coordinates.latitude},${coordinates.longitude}" target="_blank" style="color: #2458d3; margin-left: 4px; text-decoration: none;">Map ↗</a>` : ''}
+              </div>
+
+              <div class="evse-list">
+                <div style="font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 6px;">
+                  EVSEs (${evses.length})
+                </div>
+                ${evses.slice(0, 4).map(evse => {
+                  const connectors = evse.connectors || [];
+                  return `
+                    <div class="evse-item">
+                      <div class="evse-header">
+                        <span>${escapeHtml(evse.uid || evse.evse_id || "EVSE")}</span>
+                        <span class="badge ${evse.status === 'AVAILABLE' ? 'ok' : evse.status === 'CHARGING' ? 'info' : 'warn'}" style="font-size: 10px; padding: 2px 6px;">
+                          ${escapeHtml(evse.status || "UNKNOWN")}
+                        </span>
+                      </div>
+                      <div class="connector-tags">
+                        ${connectors.map(c => `<span class="connector-tag">${escapeHtml(c.standard || "Connector")} · ${c.max_electric_power ? (c.max_electric_power/1000).toFixed(0)+'kW' : ''}</span>`).join('')}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+                ${evses.length > 4 ? `<div style="font-size: 11px; color: #64748b; margin-top: 4px;">+ ${evses.length - 4} more EVSEs</div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function showError(msg) {
+    const errorBanner = document.getElementById("errorBanner");
+    errorBanner.textContent = msg;
+    errorBanner.style.display = "flex";
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function copyText(val) {
+    navigator.clipboard.writeText(val).then(() => {
+      alert("Copied to clipboard: " + val);
+    });
+  }
+
+  // Event Listeners
+  document.getElementById("endpointSearch").addEventListener("input", renderEndpoints);
+  document.getElementById("endpointRoleFilter").addEventListener("change", renderEndpoints);
+  document.getElementById("fetchLocationsBtn").addEventListener("click", fetchLocations);
+  document.getElementById("locationSearch").addEventListener("input", renderLocations);
+
+  document.getElementById("toggleRawJsonBtn").addEventListener("click", () => {
+    const wrap = document.getElementById("rawJsonWrap");
+    wrap.style.display = wrap.style.display === "none" ? "block" : "none";
+  });
+
+  const copySimBtn = document.getElementById("copySimTokenBtn");
+  if (copySimBtn) {
+    copySimBtn.addEventListener("click", () => {
+      const simToken = rawStatus?.activeSimulatorToken || rawStatus?.localToken || rawStatus?.bootstrapToken;
+      if (simToken) copyText(simToken);
+      else alert("No simulator token available.");
+    });
+  }
+
+  const copySimHeaderBtn = document.getElementById("copySimHeaderBtn");
+  if (copySimHeaderBtn) {
+    copySimHeaderBtn.addEventListener("click", () => {
+      const simToken = rawStatus?.activeSimulatorToken || rawStatus?.localToken || rawStatus?.bootstrapToken;
+      if (simToken) {
+        copyText(`Token ${btoa(simToken)}`);
+      } else alert("No simulator token available.");
+    });
+  }
+
+  document.getElementById("copyTokenBtn").addEventListener("click", () => {
+    if (rawToken) {
+      copyText(rawToken);
+    } else {
+      alert("No partner token available.");
+    }
+  });
+
+  const copyPartnerHeaderBtn = document.getElementById("copyPartnerHeaderBtn");
+  if (copyPartnerHeaderBtn) {
+    copyPartnerHeaderBtn.addEventListener("click", () => {
+      if (rawToken) {
+        copyText(`Token ${btoa(rawToken)}`);
+      } else alert("No partner token available.");
+    });
+  }
+
+  loadStatus();
+</script>
+
+</body>
+</html>

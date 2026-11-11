@@ -1,22 +1,1199 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OCPI CPO Dashboard</title><style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:#f3f6fb;color:#172033}
-header{background:#14264d;color:white;padding:22px max(20px,calc((100% - 1100px)/2))}
-header h1{margin:0 0 7px;font-size:24px}header p{margin:0;color:#dbe5fb}
-nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px}nav a{color:white}
-main{max-width:1100px;margin:24px auto;padding:0 18px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:22px;margin-bottom:18px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.stat{background:white;border:1px solid #e2e8f0;border-radius:10px;padding:18px}
-.muted{color:#64748b;line-height:1.5}.badge{display:inline-block;border-radius:999px;padding:6px 10px;background:#dcfce7;color:#166534;font-weight:700}
-button{padding:10px 14px;border:0;border-radius:7px;background:#2458d3;color:white;font-weight:650;cursor:pointer}
-input,select,textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:7px;margin:7px 0 14px;font:inherit}
-label{font-size:13px;font-weight:650}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0f172a;color:#d1fae5;padding:14px;border-radius:8px}
-@media(max-width:700px){.grid{grid-template-columns:1fr}header{padding:20px}}
-</style></head>
-<body><header><h1>CPO Dashboard</h1><p>OCPI 2.2.1 · Credentials handshake completed</p><nav><a href="/">Handshake setup</a><a href="/logs.html">Traffic logs</a><a href="/emsp.html">eMSP dashboard</a></nav></header>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OCPI CPO Dashboard &amp; Endpoints Explorer</title>
+<style>
+  :root {
+    --primary: #2458d3;
+    --primary-hover: #1d4ed8;
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --text: #172033;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --font: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); }
+  
+  header {
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    color: white;
+    padding: 22px max(20px, calc((100% - 1300px) / 2));
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  header p { margin: 0; color: #94a3b8; font-size: 13.5px; }
+  nav { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  nav a {
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 550;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.15s ease;
+  }
+  nav a:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  nav a.active {
+    color: #ffffff;
+    background: #2563eb;
+    border-color: #3b82f6;
+  }
+  nav a.nav-swagger {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.25);
+    font-weight: 600;
+  }
+  nav a.nav-swagger:hover {
+    background: rgba(56, 189, 248, 0.16);
+    color: #7dd3fc;
+  }
+
+  main { max-width: 1300px; margin: 24px auto 48px; padding: 0 20px; }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 6px rgba(15,23,42,.03);
+  }
+  .stat-label { font-size: 12px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 22px; font-weight: 750; color: var(--text); margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+
+  /* Sections / Cards */
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { font-size: 18px; font-weight: 750; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .panel-subtitle { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.bad { background: #fee2e2; color: #991b1b; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .badge.info { background: #dbeafe; color: #1e40af; }
+  .badge.purple { background: #f3e8ff; color: #6b21a8; }
+  .badge.neutral { background: #e2e8f0; color: #334155; }
+  .badge.dot::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* Buttons */
+  button, .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 15px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: white;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    text-decoration: none;
+  }
+  button:hover, .btn:hover { background: var(--primary-hover); }
+  button:active { transform: scale(0.98); }
+  button.secondary, .btn.secondary { background: #e8edf6; color: #172033; }
+  button.secondary:hover, .btn.secondary:hover { background: #dbe3ef; }
+  button.outline { background: transparent; border: 1px solid var(--border); color: #334155; }
+  button.outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+  .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
+
+  /* Info Key-Value Grid */
+  .kv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .kv-box {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .kv-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .kv-value { font-size: 13px; font-weight: 600; color: #0f172a; word-break: break-all; }
+  .code-font { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  /* Table */
+  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: white; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+  th, td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  th { background: #f8fafc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  tbody tr:hover { background: #f8fafc; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: white;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+
+  pre {
+    margin: 0;
+    padding: 12px;
+    background: #0f172a;
+    color: #d1fae5;
+    border-radius: 8px;
+    font-size: 12px;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Simulation Section Styles */
+  .sim-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    border: 1px solid #334155;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.15);
+  }
+  .sim-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+  }
+  .sim-metric-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 16px;
+    transition: all 0.2s ease;
+  }
+  .sim-metric-card.active-pulse {
+    border-color: #38bdf8;
+    background: rgba(14, 165, 233, 0.12);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+  }
+  .sim-metric-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+  .sim-metric-val { font-size: 24px; font-weight: 800; color: #f8fafc; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, monospace; }
+  .sim-metric-sub { font-size: 11.5px; color: #cbd5e1; margin-top: 4px; }
+
+  .sim-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+  }
+  .sim-controls-bar label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .sim-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .sim-modal-card {
+    background: white;
+    border-radius: 12px;
+    max-width: 820px;
+    width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  .sim-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: #f8fafc;
+  }
+  .sim-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  button.success, .btn.success { background: #16a34a; color: white; }
+  button.success:hover, .btn.success:hover { background: #15803d; }
+  button.danger, .btn.danger { background: #dc2626; color: white; }
+  button.danger:hover, .btn.danger:hover { background: #b91c1c; }
+
+  @media (max-width: 850px) {
+    .stats-grid, .sim-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    header { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CPO Dashboard &amp; Endpoints Explorer</h1>
+  <p>OCPI 2.2.1 · Connected Partner Workspace (Operating as Charge Point Operator)</p>
+  <nav>
+    <a href="/">← Handshake</a>
+    <a href="/cpo" class="active">CPO Dashboard</a>
+    <a href="/cpo-locations">Location Builder</a>
+    <a href="/emsp">eMSP Dashboard</a>
+    <a href="/logs">Traffic Logs</a>
+    <a href="/docs" target="_blank" class="nav-swagger">Swagger API Docs ↗</a>
+  </nav>
+</header>
+
 <main>
-<section class="card"><span class="badge" id="status">Checking connection…</span><h2 style="margin-bottom:6px">CPO workspace</h2><p class="muted">This page is shown when the simulator role is CPO and the credentials handshake succeeds.</p><div class="grid"><div class="stat"><div class="muted">Role</div><h2>CPO</h2></div><div class="stat"><div class="muted">Protocol version</div><h2>OCPI 2.2.1</h2></div><div class="stat"><div class="muted">Party</div><h2 id="party">—</h2></div></div></section>
-<section class="card"><h2>Handshake details</h2><pre id="details">Loading connection details…</pre></section>
-<section class="card"><h2>CPO actions</h2><p class="muted">The handshake is complete. The next CPO workflow is to configure at least one location/EVSE/connector and publish it through the partner's discovered Locations endpoint. Charger publishing is not wired into this page yet.</p><button onclick="location.href='/logs.html'">Inspect handshake requests and responses</button></section>
+  <!-- Quick Banner for Location Builder -->
+  <section class="panel" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; border: none; margin-bottom: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+      <div>
+        <h2 style="font-size: 19px; font-weight: 750; margin: 0 0 6px; color: white;">⚡ CPO Location Builder &amp; Stations Manager</h2>
+        <p style="margin: 0; font-size: 13.5px; color: #bfdbfe;">
+          Create charging locations, configure EVSEs &amp; connectors, assign tariffs, and serve them live to partners via <code>/ocpi/cpo/2.2.1/locations</code>.
+        </p>
+      </div>
+      <div>
+        <a href="/cpo-locations.html" class="btn" style="background: white; color: #1e3a8a; font-weight: 700; padding: 10px 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+          Open Location Builder →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Row -->
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Connection Status</div>
+      <div class="stat-value">
+        <span id="connStatusBadge" class="badge dot ok">CONNECTED</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Partner Party</div>
+      <div class="stat-value" id="partyDisplay">DE / CCL</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Discovered Endpoints</div>
+      <div class="stat-value" id="endpointsCountDisplay">13 Endpoints</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Simulator Role</div>
+      <div class="stat-value">CPO</div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- CHARGING SESSION SIMULATION & MONITORING (CPO ROLE)                       -->
+  <!-- ========================================================================= -->
+  <section class="panel" style="border: 2px solid #3b82f6; box-shadow: 0 4px 20px rgba(59,130,246,0.12);">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title" style="color: #1e3a8a;">
+          ⚡ Charging Session Lifecycle Simulation (CPO Role)
+        </h2>
+        <div class="panel-subtitle">
+          Full OCPI 2.2.1 lifecycle: START_SESSION ➔ Session PUT ➔ Periodic PATCH ➔ STOP_SESSION ➔ Final PATCH ➔ CDR POST
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="toggleSimConfigBtn" class="outline btn-sm">⚙️ Simulation Config</button>
+        <button id="resetSimBtn" class="outline btn-sm">🔄 Reset to IDLE</button>
+      </div>
+    </div>
+
+    <!-- Live Monitor Banner -->
+    <div class="sim-banner">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 700;">Simulated Session Live Monitor</span>
+          <div style="font-size: 13px; color: #cbd5e1; margin-top: 2px;">
+            Target: <strong id="simLocEvseDisplay" style="color: white;">No active session</strong>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="simStatusBadge" class="badge dot neutral" style="font-size: 13px; padding: 6px 14px;">IDLE</span>
+        </div>
+      </div>
+
+      <div class="sim-metrics-grid">
+        <div class="sim-metric-card" id="metricCardStatus">
+          <div class="sim-metric-label">Session ID</div>
+          <div class="sim-metric-val" id="simSessionIdDisplay" style="font-size: 16px; overflow: hidden; text-overflow: ellipsis;">—</div>
+          <div class="sim-metric-sub" id="simCdrIdDisplay">CDR: —</div>
+        </div>
+        <div class="sim-metric-card" id="metricCardEnergy">
+          <div class="sim-metric-label">Energy Consumed</div>
+          <div class="sim-metric-val" id="simEnergyDisplay">0.0000 kWh</div>
+          <div class="sim-metric-sub" id="simMeterDisplay">Meter: 0.0000 kWh</div>
+        </div>
+        <div class="sim-metric-card" id="metricCardCost">
+          <div class="sim-metric-label">Session Cost</div>
+          <div class="sim-metric-val" id="simCostDisplay">₹0.00</div>
+          <div class="sim-metric-sub" id="simCostBreakdown">Excl: ₹0.00 · GST: ₹0.00</div>
+        </div>
+        <div class="sim-metric-card" id="metricCardDuration">
+          <div class="sim-metric-label">Duration &amp; Power</div>
+          <div class="sim-metric-val" id="simTimerDisplay">00:00:00</div>
+          <div class="sim-metric-sub" id="simPowerDisplay">Charging Power: 60 kW</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Controls Bar -->
+    <div class="sim-controls-bar">
+      <div>
+        <label>Location:</label>
+        <select id="simLocationSelect" class="search-input" style="min-width: 200px; padding: 7px 10px; margin-left: 6px; font-size: 12.5px;">
+          <option value="">Loading locations...</option>
+        </select>
+      </div>
+      <div>
+        <label>EVSE &amp; Connector:</label>
+        <select id="simEvseSelect" class="search-input" style="min-width: 180px; padding: 7px 10px; margin-left: 6px; font-size: 12.5px;">
+          <option value="">Select Location First</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px; margin-left: auto;">
+        <button id="btnStartSim" class="success" style="padding: 8px 16px;">
+          ▶ Start Session
+        </button>
+        <button id="btnStopSim" class="danger" style="padding: 8px 16px;" disabled>
+          ⏹ Stop Session
+        </button>
+      </div>
+    </div>
+
+    <div id="simAlertBox" style="display: none; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;"></div>
+
+    <!-- Collapsible Config Section -->
+    <div id="simConfigSection" style="display: none; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 20px;">
+      <h3 style="font-size: 14px; font-weight: 750; margin: 0 0 14px; color: #0f172a;">⚙️ Configurable Session Simulation Parameters</h3>
+      <div class="kv-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+        <div class="kv-box">
+          <div class="kv-label">Session Duration (Seconds)</div>
+          <input type="number" id="cfgDuration" class="search-input" style="width: 100%;" min="10" step="10">
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Update Frequency (Seconds)</div>
+          <input type="number" id="cfgInterval" class="search-input" style="width: 100%;" min="2" step="1">
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Charging Power (kW)</div>
+          <input type="number" id="cfgPower" class="search-input" style="width: 100%;" min="1" step="1">
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Energy Price (per kWh)</div>
+          <input type="number" id="cfgPrice" class="search-input" style="width: 100%;" min="0" step="0.5">
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">VAT / Tax Percentage (%)</div>
+          <input type="number" id="cfgTax" class="search-input" style="width: 100%;" min="0" step="0.5">
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Currency Code</div>
+          <input type="text" id="cfgCurrency" class="search-input" style="width: 100%;" maxlength="3">
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Initial Meter (kWh)</div>
+          <input type="number" id="cfgMeter" class="search-input" style="width: 100%;" min="0" step="1">
+        </div>
+        <div class="kv-box" style="display: flex; flex-direction: column; justify-content: center;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-transform: none;">
+            <input type="checkbox" id="cfgAutoStop"> Auto-stop after duration
+          </label>
+        </div>
+      </div>
+
+      <div style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;">EMSP Locations Endpoint (Auto or Override):</label>
+          <input type="url" id="cfgLocationsUrl" class="search-input" style="width: 100%; margin-top: 4px; font-size: 12px;" placeholder="e.g. https://emsp.com/ocpi/emsp/2.2.1/locations">
+        </div>
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;">EMSP Sessions Endpoint (Auto or Override):</label>
+          <input type="url" id="cfgSessionsUrl" class="search-input" style="width: 100%; margin-top: 4px; font-size: 12px;" placeholder="e.g. https://emsp.com/ocpi/emsp/2.2.1/sessions">
+        </div>
+        <div>
+          <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;">EMSP CDRs Endpoint (Auto or Override):</label>
+          <input type="url" id="cfgCdrsUrl" class="search-input" style="width: 100%; margin-top: 4px; font-size: 12px;" placeholder="e.g. https://emsp.com/ocpi/emsp/2.2.1/cdrs">
+        </div>
+      </div>
+
+      <div style="margin-top: 14px; text-align: right;">
+        <button id="btnSaveConfig" class="btn" style="padding: 8px 18px;">Save Simulation Config</button>
+      </div>
+    </div>
+
+    <!-- OCPI Request/Response Logs Table -->
+    <div style="margin-top: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="font-size: 15px; font-weight: 750; margin: 0; color: #0f172a;">
+          📋 Real-Time OCPI Request/Response Lifecycle Logs
+        </h3>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <select id="simLogFilter" class="search-input" style="padding: 4px 8px; font-size: 12px;">
+            <option value="ALL">All Operations</option>
+            <option value="START_COMMAND">START_SESSION (Command)</option>
+            <option value="SESSION_PUT">Session Creation (PUT)</option>
+            <option value="EVSE_PUT">EVSE Status Update (PUT)</option>
+            <option value="SESSION_PATCH">Session Updates (PATCH)</option>
+            <option value="STOP_COMMAND">STOP_SESSION (Command)</option>
+            <option value="FINAL_PATCH">Session Completion (Final PATCH)</option>
+            <option value="CDR_POST">CDR Submission (POST)</option>
+          </select>
+          <span id="simOpsCounter" class="badge neutral">0 Events</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 110px;">Timestamp</th>
+              <th style="width: 160px;">Operation</th>
+              <th style="width: 90px;">Method</th>
+              <th>Endpoint URL</th>
+              <th style="width: 90px;">Status</th>
+              <th>Message</th>
+              <th style="width: 100px; text-align: right;">Payload</th>
+            </tr>
+          </thead>
+          <tbody id="simOpsTableBody">
+            <tr>
+              <td colspan="7" class="empty-state">No simulation operations recorded yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Handshake & Partner Details -->
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">CPO Handshake Details</h2>
+        <div class="panel-subtitle">Credentials and partner connection configuration</div>
+      </div>
+      <div>
+        <button id="toggleRawJsonBtn" class="outline btn-sm">Toggle Raw JSON</button>
+      </div>
+    </div>
+
+    <div class="kv-grid">
+      <div class="kv-box">
+        <div class="kv-label">Partner Name &amp; Role</div>
+        <div class="kv-value" id="partnerNameDisplay">ChargeCloud UAT (eMSP)</div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Discovered Versions URL</div>
+        <div class="kv-value code-font" id="versionsUrlDisplay">—</div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Credentials Endpoint</div>
+        <div class="kv-value code-font" id="credentialsUrlDisplay">—</div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Partner Locations RECEIVER URL</div>
+        <div class="kv-value code-font" id="locationsUrlDisplay">—</div>
+      </div>
+      <div class="kv-box" style="border: 1.5px solid #3b82f6; background: #f0f7ff;">
+        <div class="kv-label" style="color: #1d4ed8; display: flex; justify-content: space-between; align-items: center;">
+          <span>Simulator Auth Token (Inbound)</span>
+          <span id="simulatorTokenBadge" class="badge ok" style="font-size: 10px; padding: 2px 7px;">Active</span>
+        </div>
+        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
+          <span id="simulatorTokenDisplay" class="code-font" style="letter-spacing: 0.5px; color: #1e3a8a; font-weight: 700;">••••••••••••</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="copySimTokenBtn" class="btn btn-sm" style="background: #2563eb; color: white;" title="Copy raw token string">Copy Raw</button>
+            <button id="copySimHeaderBtn" class="btn btn-sm" style="background: #1e40af; color: white;" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: #475569; margin-top: 5px;">
+          OCPI 2.2.1 Header: <code id="simHeaderPreview">Authorization: Token &lt;base64&gt;</code> (Both Base64 &amp; Raw accepted)
+        </div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Partner Remote Token (Outbound)</div>
+        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
+          <span id="tokenDisplay" class="code-font" style="letter-spacing: 0.5px;">••••••••••••</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="copyTokenBtn" class="outline btn-sm" title="Copy raw token">Copy Raw</button>
+            <button id="copyPartnerHeaderBtn" class="outline btn-sm" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
+          Outbound Header: <code id="partnerHeaderPreview">Authorization: Token &lt;base64&gt;</code>
+        </div>
+      </div>
+      <div class="kv-box">
+        <div class="kv-label">Protocol Version</div>
+        <div class="kv-value">OCPI 2.2.1</div>
+      </div>
+    </div>
+
+    <div id="rawJsonWrap" style="display: none; margin-top: 16px;">
+      <pre id="rawJsonBox">Loading...</pre>
+    </div>
+  </section>
+
+  <!-- Discovered Endpoints Listing Screen -->
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Discovered Partner Endpoints</h2>
+        <div class="panel-subtitle">All modules advertised by the partner in OCPI 2.2.1</div>
+      </div>
+      <div>
+        <span id="endpointCounter" class="badge info">13 Modules</span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input type="search" id="endpointSearch" class="search-input" placeholder="Filter endpoint by module (e.g. locations, commands, tokens)...">
+      <select id="endpointRoleFilter" class="search-input" style="flex: 0 0 160px;">
+        <option value="ALL">All Roles</option>
+        <option value="SENDER">SENDER</option>
+        <option value="RECEIVER">RECEIVER</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Role</th>
+            <th>Endpoint URL</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="endpointsTableBody">
+          <tr><td colspan="4" class="empty-state">Loading endpoints...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </main>
+
 <script>
-(async()=>{try{const r=await fetch('/api/status');const s=await r.json();if(!r.ok)throw Error('Status request failed');if(s.status!=='CONNECTED'||s.role!=='CPO'){location.replace('/');return}document.getElementById('status').textContent='CONNECTED';document.getElementById('party').textContent=(s.countryCode||'')+' / '+(s.partyId||'');document.getElementById('details').textContent=JSON.stringify({status:s.status,role:s.role,version:s.version,countryCode:s.countryCode,partyId:s.partyId,businessName:s.businessName,partnerRoles:s.partnerRoles},null,2)}catch(e){document.getElementById('status').textContent='Unable to verify connection';document.getElementById('details').textContent=e.message}})();
-</script></body></html>
+  let endpointsData = [];
+  let rawPartnerToken = "";
+  let rawSimToken = "";
+
+  const moduleColors = {
+    locations: "ok",
+    commands: "purple",
+    credentials: "info",
+    tokens: "warn",
+    sessions: "info",
+    cdrs: "ok",
+    tariffs: "warn"
+  };
+
+  function getBadgeClass(identifier) {
+    return moduleColors[identifier.toLowerCase()] || "neutral";
+  }
+
+  async function loadStatus() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const profileId = urlParams.get('profileId');
+      const fetchUrl = profileId ? `/api/status?profileId=${encodeURIComponent(profileId)}` : "/api/status?role=CPO";
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error("Could not load CPO status (HTTP " + res.status + ")");
+      const data = await res.json();
+      rawPartnerToken = data.remoteToken || "";
+      rawSimToken = data.activeSimulatorToken || data.localToken || data.bootstrapToken || "";
+
+      if (data.status !== "CONNECTED") {
+        document.getElementById("connStatusBadge").textContent = data.status || "DISCONNECTED";
+        document.getElementById("connStatusBadge").className = "badge dot " + (data.status === "ERROR" ? "bad" : "warn");
+      } else {
+        document.getElementById("connStatusBadge").textContent = "CONNECTED";
+        document.getElementById("connStatusBadge").className = "badge dot ok";
+      }
+
+      const partner = data.partnerRoles?.[0] || {};
+      const party = (partner.country_code || "DE") + " / " + (partner.party_id || "CCL");
+      document.getElementById("partyDisplay").textContent = party;
+      document.getElementById("partnerNameDisplay").textContent = (partner.business_details?.name || "ChargeCloud UAT") + ` (${partner.role || "eMSP"})`;
+
+      document.getElementById("versionsUrlDisplay").textContent = data.remoteVersionsUrl || "—";
+      document.getElementById("credentialsUrlDisplay").textContent = data.remoteCredentialsUrl || "—";
+      document.getElementById("locationsUrlDisplay").textContent = data.partnerLocationsUrl || "—";
+
+      // Simulator Inbound Token badge and display
+      const simBadge = document.getElementById("simulatorTokenBadge");
+      if (simBadge) {
+        if (data.tokenPhase === "POST_HANDSHAKE") {
+          simBadge.textContent = "Post-Handshake (Active)";
+          simBadge.className = "badge ok";
+        } else {
+          simBadge.textContent = "Pre-Handshake (Bootstrap)";
+          simBadge.className = "badge warn";
+        }
+      }
+
+      let simB64 = data.activeSimulatorTokenBase64 || (rawSimToken ? btoa(rawSimToken) : "");
+      let partnerB64 = data.remoteTokenBase64 || (rawPartnerToken ? btoa(rawPartnerToken) : "");
+
+      if (rawSimToken) {
+        document.getElementById("simulatorTokenDisplay").textContent =
+          rawSimToken.length > 16
+            ? rawSimToken.slice(0, 8) + "••••••••" + rawSimToken.slice(-6)
+            : rawSimToken;
+        document.getElementById("simHeaderPreview").textContent = `Authorization: Token ${simB64}`;
+      } else {
+        document.getElementById("simulatorTokenDisplay").textContent = "—";
+        document.getElementById("simHeaderPreview").textContent = "Authorization: Token <base64>";
+      }
+
+      // Partner Remote Token
+      if (rawPartnerToken) {
+        document.getElementById("tokenDisplay").textContent =
+          rawPartnerToken.length > 16
+            ? rawPartnerToken.slice(0, 8) + "••••••••" + rawPartnerToken.slice(-6)
+            : rawPartnerToken;
+        document.getElementById("partnerHeaderPreview").textContent = `Authorization: Token ${partnerB64}`;
+      } else {
+        document.getElementById("tokenDisplay").textContent = "—";
+        document.getElementById("partnerHeaderPreview").textContent = "Authorization: Token <base64>";
+      }
+
+      document.getElementById("rawJsonBox").textContent = JSON.stringify(data, null, 2);
+
+      endpointsData = data.partnerEndpoints || [];
+      document.getElementById("endpointsCountDisplay").textContent = endpointsData.length + " Endpoints";
+      document.getElementById("endpointCounter").textContent = endpointsData.length + " Modules";
+      renderEndpoints();
+
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function renderEndpoints() {
+    const tbody = document.getElementById("endpointsTableBody");
+    const search = document.getElementById("endpointSearch").value.toLowerCase().trim();
+    const roleFilter = document.getElementById("endpointRoleFilter").value;
+
+    const filtered = endpointsData.filter(ep => {
+      if (roleFilter !== "ALL" && ep.role !== roleFilter) return false;
+      if (search && !ep.identifier.toLowerCase().includes(search) && !ep.url.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No matching endpoints found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(ep => {
+      return `
+        <tr>
+          <td><span class="badge ${getBadgeClass(ep.identifier)}">${ep.identifier.toUpperCase()}</span></td>
+          <td><span class="badge ${ep.role === 'SENDER' ? 'ok' : 'info'}">${ep.role}</span></td>
+          <td class="code-font" style="word-break: break-all;">${ep.url}</td>
+          <td style="text-align: right;"><button class="outline btn-sm" onclick="copyText('${ep.url}')">Copy URL</button></td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function copyText(val) {
+    navigator.clipboard.writeText(val).then(() => {
+      alert("Copied to clipboard: " + val);
+    });
+  }
+
+  document.getElementById("endpointSearch").addEventListener("input", renderEndpoints);
+  document.getElementById("endpointRoleFilter").addEventListener("change", renderEndpoints);
+
+  document.getElementById("toggleRawJsonBtn").addEventListener("click", () => {
+    const wrap = document.getElementById("rawJsonWrap");
+    wrap.style.display = wrap.style.display === "none" ? "block" : "none";
+  });
+
+  const copySimBtn = document.getElementById("copySimTokenBtn");
+  if (copySimBtn) {
+    copySimBtn.addEventListener("click", () => {
+      if (rawSimToken) copyText(rawSimToken);
+      else alert("No simulator token available.");
+    });
+  }
+
+  const copySimHeaderBtn = document.getElementById("copySimHeaderBtn");
+  if (copySimHeaderBtn) {
+    copySimHeaderBtn.addEventListener("click", () => {
+      if (rawSimToken) {
+        const b64 = btoa(rawSimToken);
+        copyText(`Token ${b64}`);
+      } else alert("No simulator token available.");
+    });
+  }
+
+  document.getElementById("copyTokenBtn").addEventListener("click", () => {
+    if (rawPartnerToken) copyText(rawPartnerToken);
+    else alert("No partner token available.");
+  });
+
+  const copyPartnerHeaderBtn = document.getElementById("copyPartnerHeaderBtn");
+  if (copyPartnerHeaderBtn) {
+    copyPartnerHeaderBtn.addEventListener("click", () => {
+      if (rawPartnerToken) {
+        const b64 = btoa(rawPartnerToken);
+        copyText(`Token ${b64}`);
+      } else alert("No partner token available.");
+    });
+  }
+
+  loadStatus();
+
+  /* ========================================================================= */
+  /* SESSION SIMULATION JAVASCRIPT CONTROLLER                                  */
+  /* ========================================================================= */
+  let currentSimulationData = null;
+  let simulationLocations = [];
+  let currentModalOp = null;
+
+  async function loadSimulationState() {
+    try {
+      const res = await fetch("/api/simulation/session");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.success) return;
+
+      currentSimulationData = data.simulation;
+      renderSimulationUI(currentSimulationData);
+    } catch (err) {
+      console.warn("Error fetching simulation state:", err);
+    }
+  }
+
+  function renderSimulationUI(sim) {
+    if (!sim) return;
+
+    // Status badge
+    const badge = document.getElementById("simStatusBadge");
+    badge.textContent = sim.status;
+    badge.className = "badge dot " + (sim.status === "ACTIVE" ? "ok" : (sim.status === "COMPLETED" ? "purple" : "neutral"));
+
+    // Active pulse on cards
+    const isAct = sim.status === "ACTIVE";
+    document.querySelectorAll(".sim-metric-card").forEach(c => c.classList.toggle("active-pulse", isAct));
+
+    // Target Location & EVSE
+    const locText = sim.locationName || sim.locationId ? `${sim.locationName || sim.locationId} (EVSE: ${sim.evseUid || "Auto"}, Conn: ${sim.connectorId || "1"})` : "No active session";
+    document.getElementById("simLocEvseDisplay").textContent = locText;
+
+    // Session & CDR ID
+    document.getElementById("simSessionIdDisplay").textContent = sim.sessionId || "—";
+    document.getElementById("simCdrIdDisplay").textContent = sim.cdrId ? `CDR: ${sim.cdrId}` : "CDR: Not generated yet";
+
+    // Energy & Meter
+    document.getElementById("simEnergyDisplay").textContent = `${sim.consumedKwh.toFixed(4)} kWh`;
+    document.getElementById("simMeterDisplay").textContent = `Meter: ${sim.currentMeterKwh.toFixed(4)} kWh`;
+
+    // Cost
+    const currSym = sim.currency === "INR" ? "₹" : (sim.currency === "EUR" ? "€" : "$");
+    document.getElementById("simCostDisplay").textContent = `${currSym}${sim.inclVatCost.toFixed(2)}`;
+    document.getElementById("simCostBreakdown").textContent = `Excl: ${currSym}${sim.exclVatCost.toFixed(2)} · Tax ${sim.config?.taxPercentage || 18}%: ${currSym}${sim.taxAmount.toFixed(2)}`;
+
+    // Duration & Power
+    document.getElementById("simTimerDisplay").textContent = formatSecondsToHms(sim.elapsedSeconds);
+    document.getElementById("simPowerDisplay").textContent = `Charging Power: ${sim.chargingPowerKw} kW`;
+
+    // Buttons
+    document.getElementById("btnStartSim").disabled = isAct;
+    document.getElementById("btnStopSim").disabled = !isAct;
+
+    // Form config inputs (if not already filled)
+    if (sim.config && !document.getElementById("cfgDuration").value) {
+      populateConfigInputs(sim.config);
+    }
+
+    // Render Ops table
+    renderSimulationOpsTable(sim.operations || []);
+  }
+
+  function formatSecondsToHms(totalSecs) {
+    const s = Math.max(0, Math.floor(totalSecs || 0));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return [
+      hrs.toString().padStart(2, "0"),
+      mins.toString().padStart(2, "0"),
+      secs.toString().padStart(2, "0")
+    ].join(":");
+  }
+
+  function populateConfigInputs(cfg) {
+    document.getElementById("cfgDuration").value = cfg.sessionDurationSeconds || 1800;
+    document.getElementById("cfgInterval").value = cfg.updateIntervalSeconds || 10;
+    document.getElementById("cfgPower").value = cfg.chargingPowerKw || 60;
+    document.getElementById("cfgPrice").value = cfg.energyPrice || 12;
+    document.getElementById("cfgTax").value = cfg.taxPercentage || 18;
+    document.getElementById("cfgCurrency").value = cfg.currency || "INR";
+    document.getElementById("cfgMeter").value = cfg.initialMeterKwh || 0;
+    document.getElementById("cfgAutoStop").checked = Boolean(cfg.autoStop);
+    document.getElementById("cfgLocationsUrl").value = cfg.emspLocationsUrl || "";
+    document.getElementById("cfgSessionsUrl").value = cfg.emspSessionsUrl || "";
+    document.getElementById("cfgCdrsUrl").value = cfg.emspCdrsUrl || "";
+  }
+
+  function renderSimulationOpsTable(ops) {
+    const tbody = document.getElementById("simOpsTableBody");
+    const filter = document.getElementById("simLogFilter").value;
+    document.getElementById("simOpsCounter").textContent = `${ops.length} Events`;
+
+    const filtered = ops.filter(op => filter === "ALL" || op.type === filter);
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No simulation events matching filter '${filter}'.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(op => {
+      const typeBadgeClass =
+        op.type === "START_COMMAND" ? "badge ok" :
+        op.type === "SESSION_PUT" ? "badge info" :
+        op.type === "EVSE_PUT" ? "badge purple" :
+        op.type === "SESSION_PATCH" ? "badge warn" :
+        op.type === "STOP_COMMAND" ? "badge bad" :
+        op.type === "FINAL_PATCH" ? "badge purple" :
+        op.type === "CDR_POST" ? "badge ok" : "badge neutral";
+
+      const statusBadge = op.httpStatus >= 200 && op.httpStatus < 300
+        ? `<span class="badge ok">${op.httpStatus}</span>`
+        : `<span class="badge bad">${op.httpStatus}</span>`;
+
+      const timeStr = op.timestamp ? new Date(op.timestamp).toLocaleTimeString() : "—";
+
+      return `
+        <tr>
+          <td style="font-size: 11.5px; color: var(--muted);">${timeStr}</td>
+          <td><span class="${typeBadgeClass}" style="font-size: 11px;">${op.type}</span></td>
+          <td><span class="badge neutral" style="font-size: 10.5px;">${op.method}</span></td>
+          <td class="code-font" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${op.url}">${op.url}</td>
+          <td>${statusBadge}</td>
+          <td style="font-size: 12px; color: #334155;">${escapeHtml(op.message || "OK")}</td>
+          <td style="text-align: right;">
+            <button class="outline btn-sm" onclick="openPayloadModal('${op.id}')">Inspect</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  async function loadLocationsForSelect() {
+    try {
+      const res = await fetch("/api/cpo/locations");
+      if (!res.ok) return;
+      const data = await res.json();
+      simulationLocations = data.locations || [];
+      const locSelect = document.getElementById("simLocationSelect");
+      if (!simulationLocations.length) {
+        locSelect.innerHTML = `<option value="">No locations available (Create one first)</option>`;
+        return;
+      }
+
+      locSelect.innerHTML = simulationLocations.map(l => `
+        <option value="${l.id}">${escapeHtml(l.name || l.id)} (${l.city || l.id})</option>
+      `).join("");
+
+      updateEvseSelect();
+    } catch (err) {
+      console.warn("Could not load locations for simulator select:", err);
+    }
+  }
+
+  function updateEvseSelect() {
+    const locId = document.getElementById("simLocationSelect").value;
+    const evseSelect = document.getElementById("simEvseSelect");
+    const loc = simulationLocations.find(l => l.id === locId);
+    if (!loc || !Array.isArray(loc.evses) || !loc.evses.length) {
+      evseSelect.innerHTML = `<option value="">Auto-select available EVSE</option>`;
+      return;
+    }
+
+    let opts = `<option value="">Auto-select available EVSE</option>`;
+    loc.evses.forEach(e => {
+      const connStr = (e.connectors || []).map(c => `Conn #${c.id}`).join(", ") || "1 Conn";
+      opts += `<option value="${e.uid}">${e.uid} (${e.status} · ${connStr})</option>`;
+    });
+    evseSelect.innerHTML = opts;
+  }
+
+  document.getElementById("simLocationSelect").addEventListener("change", updateEvseSelect);
+
+  // Manual Start Session Trigger
+  document.getElementById("btnStartSim").addEventListener("click", async () => {
+    const btn = document.getElementById("btnStartSim");
+    btn.disabled = true;
+    showAlert("Starting session lifecycle…", "info");
+
+    try {
+      const locId = document.getElementById("simLocationSelect").value;
+      const evseUid = document.getElementById("simEvseSelect").value;
+      const res = await fetch("/api/simulation/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location_id: locId || null,
+          evse_uid: evseUid || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to start session.");
+      }
+      showAlert(data.message, "ok");
+      await loadSimulationState();
+    } catch (err) {
+      showAlert(err.message, "bad");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Manual Stop Session Trigger
+  document.getElementById("btnStopSim").addEventListener("click", async () => {
+    const btn = document.getElementById("btnStopSim");
+    btn.disabled = true;
+    showAlert("Stopping session and generating CDR…", "info");
+
+    try {
+      const res = await fetch("/api/simulation/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to stop session.");
+      }
+      showAlert(data.message, "ok");
+      await loadSimulationState();
+    } catch (err) {
+      showAlert(err.message, "bad");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Reset Trigger
+  document.getElementById("resetSimBtn").addEventListener("click", async () => {
+    if (!confirm("Reset simulation monitor back to IDLE?")) return;
+    try {
+      const res = await fetch("/api/simulation/reset", { method: "POST" });
+      const data = await res.json();
+      showAlert("Simulation reset to IDLE.", "ok");
+      await loadSimulationState();
+    } catch (err) {
+      showAlert(err.message, "bad");
+    }
+  });
+
+  // Save Configuration Trigger
+  document.getElementById("btnSaveConfig").addEventListener("click", async () => {
+    try {
+      const updates = {
+        sessionDurationSeconds: Number(document.getElementById("cfgDuration").value),
+        updateIntervalSeconds: Number(document.getElementById("cfgInterval").value),
+        chargingPowerKw: Number(document.getElementById("cfgPower").value),
+        energyPrice: Number(document.getElementById("cfgPrice").value),
+        taxPercentage: Number(document.getElementById("cfgTax").value),
+        currency: document.getElementById("cfgCurrency").value.trim().toUpperCase(),
+        initialMeterKwh: Number(document.getElementById("cfgMeter").value),
+        autoStop: document.getElementById("cfgAutoStop").checked,
+        emspLocationsUrl: document.getElementById("cfgLocationsUrl").value.trim() || null,
+        emspSessionsUrl: document.getElementById("cfgSessionsUrl").value.trim() || null,
+        emspCdrsUrl: document.getElementById("cfgCdrsUrl").value.trim() || null,
+      };
+
+      const res = await fetch("/api/simulation/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error("Could not update config.");
+      showAlert("Simulation configuration saved successfully!", "ok");
+      document.getElementById("simConfigSection").style.display = "none";
+      await loadSimulationState();
+    } catch (err) {
+      showAlert(err.message, "bad");
+    }
+  });
+
+  // Toggle Config panel
+  document.getElementById("toggleSimConfigBtn").addEventListener("click", () => {
+    const sec = document.getElementById("simConfigSection");
+    sec.style.display = sec.style.display === "none" ? "block" : "none";
+  });
+
+  document.getElementById("simLogFilter").addEventListener("change", () => {
+    if (currentSimulationData) {
+      renderSimulationOpsTable(currentSimulationData.operations || []);
+    }
+  });
+
+  function showAlert(msg, type = "info") {
+    const box = document.getElementById("simAlertBox");
+    box.textContent = msg;
+    box.style.display = "block";
+    box.style.background = type === "ok" ? "#dcfce7" : (type === "bad" ? "#fee2e2" : "#dbeafe");
+    box.style.color = type === "ok" ? "#166534" : (type === "bad" ? "#991b1b" : "#1e40af");
+    setTimeout(() => { box.style.display = "none"; }, 6000);
+  }
+
+  // Payload Modal Functions
+  window.openPayloadModal = function(opId) {
+    if (!currentSimulationData || !Array.isArray(currentSimulationData.operations)) return;
+    const op = currentSimulationData.operations.find(o => o.id === opId);
+    if (!op) return;
+
+    currentModalOp = op;
+    document.getElementById("modalOpTitle").textContent = `${op.type} (${op.method} ${op.httpStatus})`;
+    document.getElementById("modalOpSubtitle").textContent = `${op.url} · ${new Date(op.timestamp).toLocaleString()}`;
+    document.getElementById("modalRequestPre").textContent = op.requestBody ? JSON.stringify(op.requestBody, null, 2) : "None (Empty / GET)";
+    document.getElementById("modalResponsePre").textContent = op.responseBody ? JSON.stringify(op.responseBody, null, 2) : "None (No response body)";
+    document.getElementById("payloadModalOverlay").style.display = "flex";
+  };
+
+  window.closePayloadModal = function() {
+    document.getElementById("payloadModalOverlay").style.display = "none";
+    currentModalOp = null;
+  };
+
+  window.copyModalRequest = function() {
+    if (currentModalOp && currentModalOp.requestBody) {
+      copyText(JSON.stringify(currentModalOp.requestBody, null, 2));
+    }
+  };
+
+  window.copyModalResponse = function() {
+    if (currentModalOp && currentModalOp.responseBody) {
+      copyText(JSON.stringify(currentModalOp.responseBody, null, 2));
+    }
+  };
+
+  // Initial Load and Auto-Refresh Polling every 2.5 seconds
+  loadLocationsForSelect();
+  loadSimulationState();
+  setInterval(loadSimulationState, 2500);
+</script>
+
+<!-- Payload Inspection Modal -->
+<div id="payloadModalOverlay" class="sim-modal-overlay">
+  <div class="sim-modal-card">
+    <div class="sim-modal-header">
+      <div>
+        <h3 id="modalOpTitle" style="margin: 0; font-size: 16px; font-weight: 750;">Operation Details</h3>
+        <div id="modalOpSubtitle" style="font-size: 12px; color: var(--muted); margin-top: 2px;"></div>
+      </div>
+      <button class="outline btn-sm" onclick="closePayloadModal()">✕ Close</button>
+    </div>
+    <div class="sim-modal-body">
+      <div style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Request Payload</strong>
+          <button class="outline btn-sm" onclick="copyModalRequest()">Copy Request</button>
+        </div>
+        <pre id="modalRequestPre">None</pre>
+      </div>
+
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Response Payload</strong>
+          <button class="outline btn-sm" onclick="copyModalResponse()">Copy Response</button>
+        </div>
+        <pre id="modalResponsePre">None</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
