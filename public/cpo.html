@@ -692,6 +692,56 @@
   </section>
 </main>
 
+<!-- Payload Inspection Modal -->
+<div id="payloadModalOverlay" class="sim-modal-overlay">
+  <div class="sim-modal-card" style="max-width: 800px;">
+    <div class="sim-modal-header">
+      <div>
+        <h3 id="modalOpTitle" style="margin: 0; font-size: 16px; font-weight: 750;">Operation Details</h3>
+        <div id="modalOpSubtitle" style="font-size: 12px; color: var(--muted); margin-top: 2px;"></div>
+      </div>
+      <button class="outline btn-sm" onclick="closePayloadModal()">✕ Close</button>
+    </div>
+    <div class="sim-modal-body">
+      <!-- Outbound Request Headers -->
+      <div style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: #1d4ed8;">🔑 Outbound HTTP Request Headers &amp; Token Diagnostic</strong>
+          <button class="outline btn-sm" onclick="copyModalRequestHeaders()">Copy Headers</button>
+        </div>
+        <pre id="modalRequestHeadersPre" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 11.5px; max-height: 200px; overflow: auto;">None</pre>
+      </div>
+
+      <!-- Request Payload -->
+      <div style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Request Body (Payload)</strong>
+          <button class="outline btn-sm" onclick="copyModalRequest()">Copy Body</button>
+        </div>
+        <pre id="modalRequestPre" style="max-height: 220px; overflow: auto;">None</pre>
+      </div>
+
+      <!-- Response Headers -->
+      <div style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Remote Response HTTP Headers</strong>
+          <button class="outline btn-sm" onclick="copyModalResponseHeaders()">Copy Headers</button>
+        </div>
+        <pre id="modalResponseHeadersPre" style="max-height: 160px; overflow: auto;">None</pre>
+      </div>
+
+      <!-- Response Payload -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Response Body</strong>
+          <button class="outline btn-sm" onclick="copyModalResponse()">Copy Body</button>
+        </div>
+        <pre id="modalResponsePre" style="max-height: 220px; overflow: auto;">None</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   let endpointsData = [];
   let rawPartnerToken = "";
@@ -1387,56 +1437,5 @@
   loadSimulationState();
   setInterval(loadSimulationState, 2500);
 </script>
-
-<!-- Payload Inspection Modal -->
-<div id="payloadModalOverlay" class="sim-modal-overlay">
-  <div class="sim-modal-card" style="max-width: 800px;">
-    <div class="sim-modal-header">
-      <div>
-        <h3 id="modalOpTitle" style="margin: 0; font-size: 16px; font-weight: 750;">Operation Details</h3>
-        <div id="modalOpSubtitle" style="font-size: 12px; color: var(--muted); margin-top: 2px;"></div>
-      </div>
-      <button class="outline btn-sm" onclick="closePayloadModal()">✕ Close</button>
-    </div>
-    <div class="sim-modal-body">
-      <!-- Outbound Request Headers -->
-      <div style="margin-bottom: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="font-size: 12px; text-transform: uppercase; color: #1d4ed8;">🔑 Outbound HTTP Request Headers &amp; Token Diagnostic</strong>
-          <button class="outline btn-sm" onclick="copyModalRequestHeaders()">Copy Headers</button>
-        </div>
-        <pre id="modalRequestHeadersPre" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 11.5px; max-height: 200px; overflow: auto;">None</pre>
-      </div>
-
-      <!-- Request Payload -->
-      <div style="margin-bottom: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Request Body (Payload)</strong>
-          <button class="outline btn-sm" onclick="copyModalRequest()">Copy Body</button>
-        </div>
-        <pre id="modalRequestPre" style="max-height: 220px; overflow: auto;">None</pre>
-      </div>
-
-      <!-- Response Headers -->
-      <div style="margin-bottom: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Remote Response HTTP Headers</strong>
-          <button class="outline btn-sm" onclick="copyModalResponseHeaders()">Copy Headers</button>
-        </div>
-        <pre id="modalResponseHeadersPre" style="max-height: 160px; overflow: auto;">None</pre>
-      </div>
-
-      <!-- Response Payload -->
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Response Body</strong>
-          <button class="outline btn-sm" onclick="copyModalResponse()">Copy Body</button>
-        </div>
-        <pre id="modalResponsePre" style="max-height: 220px; overflow: auto;">None</pre>
-      </div>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
