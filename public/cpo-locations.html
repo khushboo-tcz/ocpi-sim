@@ -523,6 +523,24 @@
       </div>
     </div>
 
+    <!-- eMSP Roaming Push Action Bar -->
+    <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span style="font-size: 13px; font-weight: 700; color: #166534; display: flex; align-items: center; gap: 6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Push to Connected eMSP Partner:
+        </span>
+        <select id="cpoPushTargetConnection" style="padding: 7px 12px; border: 1px solid #86efac; border-radius: 6px; font-size: 13px; min-width: 280px; max-width: 420px; margin-bottom: 0; background: white;">
+          <option value="">Loading CPO Connections…</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button id="btnPushAllToEmsp" class="btn btn-sm" style="background: #16a34a; color: white; font-weight: 700; border: 0; cursor: pointer; padding: 8px 14px;" onclick="pushAllLocationsToEmsp()">
+          🚀 Push All Locations to eMSP
+        </button>
+      </div>
+    </div>
+
     <!-- Toolbar filter -->
     <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
       <input type="search" id="listSearch" placeholder="Search by name, city, or Location ID…" style="flex: 1; min-width: 260px;" oninput="renderLocationsTable()">
@@ -540,6 +558,7 @@
             <th>Location Name</th>
             <th>Location ID</th>
             <th>City &amp; Country</th>
+            <th>Assigned Profile</th>
             <th>EVSEs</th>
             <th>Connectors</th>
             <th>Status</th>
@@ -677,6 +696,15 @@
               <div class="form-group">
                 <label for="locOperator">Operator Name</label>
                 <input id="locOperator" placeholder="e.g. OCPI Test Operator" oninput="onFormChange()">
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label for="locConnectionProfile">Associated CPO Connection <span class="sub-label">(Optional Profile Tag)</span></label>
+                <select id="locConnectionProfile" onchange="onFormChange()">
+                  <option value="">All CPO Connections (Global)</option>
+                </select>
               </div>
             </div>
 
@@ -936,12 +964,132 @@
   async function init() {
     generateNewLocationId();
     await loadSimulatorConfig();
+    await loadCpoConnections();
     await fetchTariffsList();
     await fetchLocationsList();
     
     // Default: 1 EVSE with 1 Connector
     initDefaultEvse();
     onFormChange();
+  }
+
+  let cpoConnections = [];
+
+  // Load configured CPO connections for roaming push
+  async function loadCpoConnections() {
+    const select = document.getElementById("cpoPushTargetConnection");
+    const builderSelect = document.getElementById("locConnectionProfile");
+    try {
+      const res = await fetch("/api/connections");
+      if (!res.ok) throw new Error("Could not load connections");
+      const data = await res.json();
+      const allConns = data.connections || [];
+      cpoConnections = allConns.filter(c => c.simulatorRole === "CPO");
+
+      if (!cpoConnections.length) {
+        if (select) select.innerHTML = `<option value="">No CPO Connections (Perform CPO Handshake on /)</option>`;
+        if (builderSelect) builderSelect.innerHTML = `<option value="">All CPO Connections (Global)</option>`;
+        return;
+      }
+
+      const optionsHtml = cpoConnections.map(c => `
+        <option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.partnerParty || "Partner")}) · ${c.status}</option>
+      `).join("");
+
+      if (select) {
+        select.innerHTML = optionsHtml;
+      }
+      if (builderSelect) {
+        builderSelect.innerHTML = `<option value="">All CPO Connections (Global)</option>` + optionsHtml;
+      }
+    } catch (err) {
+      if (select) select.innerHTML = `<option value="">Error loading CPO connections</option>`;
+    }
+  }
+
+  async function pushAllLocationsToEmsp() {
+    const select = document.getElementById("cpoPushTargetConnection");
+    const profileId = select ? select.value : null;
+    const btn = document.getElementById("btnPushAllToEmsp");
+
+    if (!profileId) {
+      alert("Please select a CPO connection profile first. If you don't have one, go to the Handshake Connections page and connect as a CPO.");
+      return;
+    }
+
+    if (!locationsData.length) {
+      alert("No locations found in the Location Builder to push.");
+      return;
+    }
+
+    const conn = cpoConnections.find(c => c.id === profileId);
+    const connName = conn ? conn.name : "selected partner eMSP";
+
+    if (!confirm(`Push all ${locationsData.length} location(s) directly to ${connName} via OCPI 2.2.1 PUT?`)) {
+      return;
+    }
+
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = "Pushing to eMSP…";
+
+    try {
+      const res = await fetch("/api/cpo/locations/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || (data.results ? data.results.map(r => r.message).join("\n") : "Push failed"));
+      }
+
+      showToast(`Success! Pushed ${data.pushedCount} location(s) to ${data.connectionName || 'eMSP'}`);
+      alert(`Success!\n\nPushed ${data.pushedCount} of ${data.total} location(s) to ${data.connectionName} (${data.partnerName}).\n\nHTTP Status: 200/201\nCheck Traffic Logs (/logs) to view the complete request/response lifecycle.`);
+    } catch (err) {
+      alert("Push failed: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+
+  async function pushSingleLocationToEmsp(locId) {
+    const select = document.getElementById("cpoPushTargetConnection");
+    const profileId = select ? select.value : null;
+
+    if (!profileId) {
+      alert("Please select a CPO connection profile from the push bar above first.");
+      return;
+    }
+
+    const loc = locationsData.find(l => l.id === locId);
+    const locName = loc ? loc.name : locId;
+    const conn = cpoConnections.find(c => c.id === profileId);
+    const connName = conn ? conn.name : "connected eMSP";
+
+    if (!confirm(`Push location '${locName}' (${locId}) directly to ${connName} via OCPI 2.2.1 PUT?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/cpo/locations/${encodeURIComponent(locId)}/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || (data.results ? data.results.map(r => r.message).join("\n") : "Push failed"));
+      }
+
+      showToast(`Success! Pushed '${locName}' to ${data.connectionName || 'eMSP'}`);
+      alert(`Success!\n\nPushed location '${locName}' (${locId}) to ${data.connectionName}.\n\nCheck Traffic Logs (/logs) for live request details.`);
+    } catch (err) {
+      alert("Push failed: " + err.message);
+    }
   }
 
   function initDefaultEvse() {
@@ -1119,7 +1267,7 @@
     });
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--muted); padding: 36px;">No charging locations found. Click "+ Create Location" to build one.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--muted); padding: 36px;">No charging locations found. Click "+ Create Location" to build one.</td></tr>`;
       return;
     }
 
@@ -1133,6 +1281,11 @@
       const evsesCount = loc.evsesCount || (loc.evses?.length || 0);
       const connCount = loc.connectorsCount || (loc.evses ? loc.evses.reduce((a, e) => a + (e.connectors?.length || 0), 0) : 0);
 
+      const assignedConn = cpoConnections.find(c => c.id === loc.connectionProfileId);
+      const connBadge = assignedConn
+        ? `<span class="badge info" style="font-size: 10px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(assignedConn.name)}">${escapeHtml(assignedConn.name)}</span>`
+        : `<span class="badge neutral" style="font-size: 10px;" title="Available to all connected CPO handshakes">Global / All</span>`;
+
       return `
         <tr>
           <td>
@@ -1144,6 +1297,7 @@
             <button class="outline btn-sm" style="padding: 2px 6px; margin-left: 4px;" onclick="copyText('${loc.id}')">Copy</button>
           </td>
           <td>${escapeHtml(loc.city)}, ${escapeHtml(loc.country)}</td>
+          <td>${connBadge}</td>
           <td><span class="badge purple">${evsesCount} EVSEs</span></td>
           <td><span class="badge info">${connCount} Connectors</span></td>
           <td>${pubBadge}</td>
@@ -1151,6 +1305,7 @@
           <td style="text-align: right; white-space: nowrap;">
             <button class="outline btn-sm" onclick="viewLocationModal('${loc.id}')">View</button>
             <button class="secondary btn-sm" onclick="editLocation('${loc.id}')">Edit</button>
+            <button class="btn btn-sm" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 650;" onclick="pushSingleLocationToEmsp('${loc.id}')" title="Push this location directly to selected eMSP via PUT">Push 🚀</button>
             <button class="outline btn-sm" onclick="duplicateLocation('${loc.id}')">Duplicate</button>
             <button class="danger btn-sm" onclick="promptDelete('${loc.id}', '${escapeHtml(loc.name)}')">Delete</button>
           </td>
@@ -1208,6 +1363,9 @@
     document.getElementById("locParkingType").value = "";
     document.getElementById("locOperator").value = "OCPI Test Simulator";
     document.getElementById("loc247").checked = true;
+    if (document.getElementById("locConnectionProfile")) {
+      document.getElementById("locConnectionProfile").value = "";
+    }
 
     initDefaultEvse();
     onFormChange();
@@ -1715,6 +1873,11 @@
       last_updated: new Date().toISOString()
     };
 
+    const connectionProfileId = document.getElementById("locConnectionProfile")?.value || null;
+    if (connectionProfileId) {
+      payload.connectionProfileId = connectionProfileId;
+    }
+
     // If inline tariff requested
     const e = Number(document.getElementById("tEnergy").value) || 0;
     const t = Number(document.getElementById("tTime").value) || 0;
@@ -1941,6 +2104,10 @@
       document.getElementById("locParkingType").value = loc.parking_type || "";
       document.getElementById("locOperator").value = loc.operator?.name || "";
       document.getElementById("loc247").checked = Boolean(loc.opening_times?.twentyfourseven !== false);
+      const connSelect = document.getElementById("locConnectionProfile");
+      if (connSelect) {
+        connSelect.value = loc.connectionProfileId || "";
+      }
 
       evseList = (loc.evses || []).map(e => ({
         uid: e.uid,

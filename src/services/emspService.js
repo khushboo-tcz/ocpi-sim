@@ -329,6 +329,69 @@ async function performEmspHandshake({
     );
   }
 
+  // If partner is dual-role (advertises both CPO and EMSP roles), also create/sync complementary CPO profile
+  const hasCpoRole = partnerRoles.some((r) => String(r.role).toUpperCase() === "CPO");
+  const hasEmspRole = partnerRoles.some((r) => String(r.role).toUpperCase() === "EMSP");
+  if (hasCpoRole && hasEmspRole) {
+    const cpoLocationsEndpoint = endpoints.find(
+      (item) => item.identifier === "locations" && (item.role === "RECEIVER" || !item.role)
+    );
+    let cpoProfile = await OcpiConnectionProfile.findOne({
+      remoteVersionsUrl: remoteCredentials.url || partnerVersionsUrl,
+      simulatorRole: "CPO",
+    });
+    if (!cpoProfile) {
+      cpoProfile = new OcpiConnectionProfile({
+        name: `${partnerName} (as CPO ➔ Partner eMSP)`,
+        simulatorRole: "CPO",
+        connectionMode: "HANDSHAKE",
+        bootstrapToken: bootstrapToken.trim(),
+      });
+    }
+    cpoProfile.status = "CONNECTED";
+    cpoProfile.partnerRoles = partnerRoles;
+    cpoProfile.remoteToken = remoteCredentials.token;
+    cpoProfile.localToken = registrationToken;
+    cpoProfile.remoteVersionsUrl = remoteCredentials.url || partnerVersionsUrl;
+    cpoProfile.remoteCredentialsUrl = credentialsEndpoint.url;
+    cpoProfile.partnerLocationsUrl = cpoLocationsEndpoint?.url || null;
+    cpoProfile.lastError = null;
+    cpoProfile.lastHandshakeAt = new Date();
+    await cpoProfile.save();
+
+    let cpoVersionDoc = await OcpiVersion.findOne({ profileId: cpoProfile._id, version: CONFIG.version });
+    if (!cpoVersionDoc) {
+      cpoVersionDoc = new OcpiVersion({
+        profileId: cpoProfile._id,
+        version: CONFIG.version,
+        versionsUrl: remoteCredentials.url || partnerVersionsUrl,
+        discoveryStatus: "DISCOVERED",
+        source: "DISCOVERED",
+        enabled: true,
+      });
+    } else {
+      cpoVersionDoc.versionsUrl = remoteCredentials.url || partnerVersionsUrl;
+      cpoVersionDoc.discoveryStatus = "DISCOVERED";
+    }
+    await cpoVersionDoc.save();
+
+    for (const ep of endpoints) {
+      await OcpiEndpoint.findOneAndUpdate(
+        { profileId: cpoProfile._id, identifier: ep.identifier, role: ep.role },
+        {
+          profileId: cpoProfile._id,
+          versionId: cpoVersionDoc._id,
+          identifier: ep.identifier,
+          role: ep.role,
+          url: ep.url,
+          source: "DISCOVERED",
+          enabled: true,
+        },
+        { upsert: true, new: true }
+      );
+    }
+  }
+
   // Update in-memory state
   state.activeProfileId = String(profile._id);
   state.status = "CONNECTED";

@@ -213,6 +213,12 @@ const evseSchema = new mongoose.Schema(
 // Location Schema
 const ocpiLocationSchema = new mongoose.Schema(
   {
+    connectionProfileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "OcpiConnectionProfile",
+      default: null,
+      index: true,
+    },
     country_code: {
       type: String,
       required: true,

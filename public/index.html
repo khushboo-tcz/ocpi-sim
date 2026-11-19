@@ -173,6 +173,24 @@
   .badge.bad { background: #fee2e2; color: #991b1b; }
   .badge.neutral { background: #f1f5f9; color: #475569; }
 
+  .conn-role-desc {
+    padding: 8px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 10px 0;
+  }
+  .conn-role-desc.emsp {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+  }
+  .conn-role-desc.cpo {
+    background: #faf5ff;
+    border: 1px solid #e9d5ff;
+    color: #6b21a8;
+  }
+
   /* Conn Info List */
   .conn-details {
     background: #f8fafc;
@@ -595,25 +613,34 @@
         container.innerHTML = connections.map(c => {
           const isEmsp = c.simulatorRole === "EMSP";
           const roleBadgeClass = isEmsp ? "emsp" : "cpo";
-          const targetDashboard = isEmsp ? "eMSP Dashboard & Locations" : "CPO Dashboard & Endpoints";
+          const targetPartnerRole = c.targetPartnerRole || (isEmsp ? "CPO" : "EMSP");
+          const targetDashboard = isEmsp ? "eMSP Dashboard & Pull Data" : "CPO Dashboard & Push Data";
           const btnClass = isEmsp ? "emsp" : "cpo";
 
           const partnerDisplay = c.partnerParty || (c.partnerRoles?.[0] ? `${c.partnerRoles[0].country_code} / ${c.partnerRoles[0].party_id}` : "CCL / DE");
           const endpointsCountText = `${c.endpointsCount || 0} Modules Discovered`;
 
           const timeStr = c.lastHandshakeAt ? new Date(c.lastHandshakeAt).toLocaleString() : "Recently";
+          const dualRolePill = c.isDualRolePartner ? `<span class="badge" style="background: #e0f2fe; color: #0369a1; font-size: 11px;">Dual-Role Partner (CPO + eMSP)</span>` : "";
 
           return `
             <div class="connection-card" id="connCard-${c.id}">
               <div>
                 <div class="conn-top">
                   <div>
-                    <h3 class="conn-name">${escapeHtml(c.name || "Handshake Partner")}</h3>
-                    <div class="conn-party">Partner: <strong>${escapeHtml(c.partnerName || "Partner")}</strong> (${escapeHtml(partnerDisplay)})</div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;">
+                      <span class="badge ${roleBadgeClass}" style="font-size: 12px; padding: 4px 10px;">Simulator: ${c.simulatorRole}</span>
+                      <span class="badge neutral" style="font-size: 11.5px; padding: 4px 9px;">Target Partner: ${targetPartnerRole}</span>
+                      ${dualRolePill}
+                    </div>
+                    <h3 class="conn-name" style="margin: 2px 0 4px;">${escapeHtml(c.name || "Handshake Partner")}</h3>
+                    <div class="conn-party">
+                      Partner: <strong>${escapeHtml(c.partnerName || "Partner")}</strong> (${escapeHtml(partnerDisplay)})
+                      <span style="color: var(--muted); font-size: 11px; margin-left: 4px;">[${c.allPartnerRoles && c.allPartnerRoles.length ? escapeHtml(c.allPartnerRoles.join(', ')) : escapeHtml(c.partnerRole || targetPartnerRole)}]</span>
+                    </div>
                   </div>
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <div class="conn-badges">
-                      <span class="badge ${roleBadgeClass}">${c.simulatorRole}</span>
                       <span class="badge dot ${c.status === 'CONNECTED' ? 'ok' : 'bad'}">${c.status}</span>
                     </div>
                     <div class="menu-container">
@@ -628,6 +655,16 @@
                   </div>
                 </div>
 
+                <div class="conn-role-desc ${roleBadgeClass}">
+                  ${isEmsp ? `
+                    <strong>Simulator Role: eMSP</strong> ➔ Connected to Partner's <strong>CPO</strong> service.<br>
+                    <span style="font-size: 11px; opacity: 0.9;">Tests pulling CPO Locations &amp; Tariffs, sending START/STOP Commands, validating Tokens.</span>
+                  ` : `
+                    <strong>Simulator Role: CPO</strong> ➔ Connected to Partner's <strong>eMSP</strong> service.<br>
+                    <span style="font-size: 11px; opacity: 0.9;">Tests publishing Locations &amp; Tariffs, pushing active Sessions &amp; CDRs, receiving Commands.</span>
+                  `}
+                </div>
+
                 <div class="conn-details">
                   <div class="conn-row">
                     <span class="conn-label">Endpoints:</span>
@@ -638,7 +675,7 @@
                     <span class="conn-val code-font">${escapeHtml(c.remoteVersionsUrl || "—")}</span>
                   </div>
                   <div class="conn-row">
-                    <span class="conn-label">Locations URL:</span>
+                    <span class="conn-label">${isEmsp ? "CPO Locations (Pull):" : "eMSP Locations (Push):"}</span>
                     <span class="conn-val code-font">${escapeHtml(c.partnerLocationsUrl || "—")}</span>
                   </div>
                   <div class="conn-row">

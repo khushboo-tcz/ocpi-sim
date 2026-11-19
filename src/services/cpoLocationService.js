@@ -88,6 +88,7 @@ function toCleanOcpiLocation(loc) {
   delete raw.__v;
   delete raw.createdAt;
   delete raw.updatedAt;
+  delete raw.connectionProfileId;
 
   // Ensure Location-level coordinates are clean strings
   if (raw.coordinates) {
@@ -141,6 +142,7 @@ function toCleanOcpiTariff(tariff) {
   delete raw.__v;
   delete raw.createdAt;
   delete raw.updatedAt;
+  delete raw.connectionProfileId;
   delete raw.price_summary;
 
   return omitNulls(raw);

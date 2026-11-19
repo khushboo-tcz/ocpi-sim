@@ -325,11 +325,14 @@
       <div>
         <h2 style="font-size: 19px; font-weight: 750; margin: 0 0 6px; color: white;">⚡ CPO Location Builder &amp; Stations Manager</h2>
         <p style="margin: 0; font-size: 13.5px; color: #bfdbfe;">
-          Create charging locations, configure EVSEs &amp; connectors, assign tariffs, and serve them live to partners via <code>/ocpi/cpo/2.2.1/locations</code>.
+          Create charging locations, configure EVSEs &amp; connectors, assign tariffs, and serve them live or push them directly to partner eMSPs.
         </p>
       </div>
-      <div>
-        <a href="/cpo-locations.html" class="btn" style="background: white; color: #1e3a8a; font-weight: 700; padding: 10px 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <button type="button" class="btn" style="background: #16a34a; color: white; font-weight: 700; padding: 10px 18px; border: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.15); cursor: pointer;" onclick="pushLocationsFromCpoDashboard()">
+          🚀 Push Locations to eMSP
+        </button>
+        <a href="/cpo-locations" class="btn" style="background: white; color: #1e3a8a; font-weight: 700; padding: 10px 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
           Open Location Builder →
         </a>
       </div>
@@ -830,7 +833,7 @@
         document.getElementById("connStatusBadge").className = "badge dot ok";
       }
 
-      const partner = data.partnerRoles?.[0] || {};
+      const partner = (data.partnerRoles || []).find(r => r.role === "EMSP") || data.partnerRoles?.[0] || {};
       const party = (partner.country_code || "DE") + " / " + (partner.party_id || "CCL");
       document.getElementById("partyDisplay").textContent = party;
       document.getElementById("partnerNameDisplay").textContent = (partner.business_details?.name || "ChargeCloud UAT") + ` (${partner.role || "eMSP"})`;
@@ -1429,6 +1432,30 @@
   window.copyModalResponse = function() {
     if (currentModalOp && currentModalOp.responseBody) {
       copyText(JSON.stringify(currentModalOp.responseBody, null, 2));
+    }
+  };
+
+  window.pushLocationsFromCpoDashboard = async function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const profileId = urlParams.get('profileId');
+
+    if (!confirm("Push all locations configured in the Location Builder directly to this connected partner eMSP?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/cpo/locations/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: profileId || undefined })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Push failed");
+      }
+      alert(`Success!\n\nPushed ${data.pushedCount} of ${data.total} location(s) to ${data.connectionName || 'eMSP'}.\n\nCheck Traffic Logs (/logs) to view the live OCPI PUT request and response.`);
+    } catch (err) {
+      alert("Push failed: " + err.message);
     }
   };
 

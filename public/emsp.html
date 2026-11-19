@@ -1069,7 +1069,8 @@
       connectionsList.forEach(c => {
         const opt = document.createElement("option");
         opt.value = c.id;
-        opt.textContent = `${c.name || "CPO"} (${c.partnerParty || "Partner"}) · ${c.status}`;
+        const rolePrefix = c.simulatorRole ? `[${c.simulatorRole}] ` : "";
+        opt.textContent = `${rolePrefix}${c.name || "CPO"} (${c.partnerParty || "Partner"}) · ${c.status}`;
         if (c.id === currentProfileId) opt.selected = true;
         select.appendChild(opt);
       });
@@ -1145,7 +1146,7 @@
         document.getElementById("connStatusBadge").className = "badge dot ok";
       }
 
-      const partner = data.partnerRoles?.[0] || {};
+      const partner = (data.partnerRoles || []).find(r => r.role === "CPO") || data.partnerRoles?.[0] || {};
       const party = (partner.country_code || "IN") + " / " + (partner.party_id || "CZS");
       document.getElementById("partyDisplay").textContent = party;
       document.getElementById("profilePartyBadge").textContent = party;

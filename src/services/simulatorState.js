@@ -440,15 +440,16 @@ async function persistHandshakeToDb({ role, partnerRoles, remoteToken, remoteVer
       if (!profile && connectionName) {
         profile = await OcpiConnectionProfile.findOne({ name: connectionName, simulatorRole: role });
       }
-      if (!profile) {
-        profile = await OcpiConnectionProfile.findOne({ simulatorRole: role });
+      if (!profile && remoteVersionsUrl) {
+        profile = await OcpiConnectionProfile.findOne({ remoteVersionsUrl, simulatorRole: role });
       }
       if (!profile) {
-        profile = new OcpiConnectionProfile({ simulatorRole: role });
+        profile = new OcpiConnectionProfile({ simulatorRole: role, name: connectionName || `${role} Connection` });
       }
       if (connectionName) {
         profile.name = connectionName;
       }
+      profile.simulatorRole = role;
       profile.status = "CONNECTED";
       profile.connectionMode = "HANDSHAKE";
       profile.partnerRoles = partnerRoles;
@@ -494,6 +495,7 @@ async function persistHandshakeToDb({ role, partnerRoles, remoteToken, remoteVer
           );
         }
       }
+      return profile;
     }
   } catch (err) {
     console.error("[MongoDB] Failed to persist handshake state:", err.message);

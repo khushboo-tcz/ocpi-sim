@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const { getConnectionStatus } = require("../db/connection");
 const OcpiConnectionProfile = require("../models/OcpiConnectionProfile");
 const OcpiEndpoint = require("../models/OcpiEndpoint");
+const OcpiVersion = require("../models/OcpiVersion");
 const OcpiApiLog = require("../models/OcpiApiLog");
 const { OcpiLocation } = require("../models/OcpiLocation");
 const OcpiTariff = require("../models/OcpiTariff");
@@ -23,6 +24,7 @@ const {
   sendStopSessionCommand,
   deleteEmspHandshake,
 } = require("../services/emspService");
+const { pushLocationsToEmsp } = require("../services/cpoPushService");
 const {
   CONFIG,
   simulator,
@@ -160,25 +162,80 @@ router.post("/handshake", async (req, res) => {
     state.remoteCredentialsUrl = credentialsEndpoint.url;
     state.partnerRoles = remoteCredentials.roles;
     state.partnerEndpoints = endpoints;
-    const locationsEndpoint = endpoints.find(
-      (item) => item.identifier === "locations" && item.role === "SENDER"
-    );
-    state.partnerLocationsUrl = locationsEndpoint?.url || null;
     state.status = "CONNECTED";
     state.lastError = null;
 
-    await persistHandshakeToDb({
-      role: simulator.role,
-      partnerRoles: remoteCredentials.roles,
-      remoteToken: remoteCredentials.token,
-      remoteVersionsUrl: remoteCredentials.url,
-      remoteCredentialsUrl: credentialsEndpoint.url,
-      endpoints,
-      partnerLocationsUrl: state.partnerLocationsUrl,
-    });
+    const remoteRoles = remoteCredentials.roles || [];
+    const hasCpoRole = remoteRoles.some((r) => String(r.role).toUpperCase() === "CPO");
+    const hasEmspRole = remoteRoles.some((r) => String(r.role).toUpperCase() === "EMSP");
+    const isDualRole = hasCpoRole && hasEmspRole;
+
+    const partnerName = remoteRoles[0]?.business_details?.name ||
+      remoteRoles[1]?.business_details?.name ||
+      businessName ||
+      "Partner";
+
+    const locationsSenderEp = endpoints.find(
+      (item) => item.identifier === "locations" && (item.role === "SENDER" || !item.role)
+    );
+    const locationsReceiverEp = endpoints.find(
+      (item) => item.identifier === "locations" && (item.role === "RECEIVER" || !item.role)
+    );
+
+    let activeProfileDoc = null;
+
+    if (isDualRole) {
+      // Dual-role partner (e.g. ChargeCloud UAT): Create complementary profiles for both roles
+      // 1. Profile for Simulator as EMSP (targets Partner CPO)
+      const emspProfile = await persistHandshakeToDb({
+        role: "EMSP",
+        connectionName: `${partnerName} (as eMSP ➔ Partner CPO)`,
+        partnerRoles: remoteCredentials.roles,
+        remoteToken: remoteCredentials.token,
+        remoteVersionsUrl: remoteCredentials.url,
+        remoteCredentialsUrl: credentialsEndpoint.url,
+        endpoints,
+        partnerLocationsUrl: locationsSenderEp?.url || null,
+      });
+
+      // 2. Profile for Simulator as CPO (targets Partner EMSP)
+      const cpoProfile = await persistHandshakeToDb({
+        role: "CPO",
+        connectionName: `${partnerName} (as CPO ➔ Partner eMSP)`,
+        partnerRoles: remoteCredentials.roles,
+        remoteToken: remoteCredentials.token,
+        remoteVersionsUrl: remoteCredentials.url,
+        remoteCredentialsUrl: credentialsEndpoint.url,
+        endpoints,
+        partnerLocationsUrl: locationsReceiverEp?.url || null,
+      });
+
+      activeProfileDoc = simulator.role === "CPO" ? cpoProfile : emspProfile;
+      state.partnerLocationsUrl = simulator.role === "CPO" ? (locationsReceiverEp?.url || null) : (locationsSenderEp?.url || null);
+    } else {
+      // Single role partner
+      const targetRole = simulator.role;
+      const targetLocUrl = targetRole === "EMSP" ? locationsSenderEp?.url : locationsReceiverEp?.url;
+      activeProfileDoc = await persistHandshakeToDb({
+        role: targetRole,
+        connectionName: `${partnerName} (as ${targetRole === "EMSP" ? "eMSP ➔ Partner CPO" : "CPO ➔ Partner eMSP"})`,
+        partnerRoles: remoteCredentials.roles,
+        remoteToken: remoteCredentials.token,
+        remoteVersionsUrl: remoteCredentials.url,
+        remoteCredentialsUrl: credentialsEndpoint.url,
+        endpoints,
+        partnerLocationsUrl: targetLocUrl || null,
+      });
+      state.partnerLocationsUrl = targetLocUrl || null;
+    }
+
+    if (activeProfileDoc?._id) {
+      state.activeProfileId = String(activeProfileDoc._id);
+    }
 
     log("Credentials exchange completed", {
       role: simulator.role,
+      isDualRole,
       partnerRoles: remoteCredentials.roles.map(({ role, party_id, country_code }) => ({
         role,
         party_id,
@@ -187,14 +244,22 @@ router.post("/handshake", async (req, res) => {
       partnerLocationsUrl: state.partnerLocationsUrl,
     });
 
+    const redirectUrl = simulator.role === "EMSP"
+      ? `/emsp?profileId=${activeProfileDoc?._id || ""}`
+      : `/cpo?profileId=${activeProfileDoc?._id || ""}`;
+
     return res.json({
       status: "CONNECTED",
       role: simulator.role,
-      redirectUrl: simulator.role === "EMSP" ? "/emsp" : "/cpo",
+      profileId: activeProfileDoc?._id ? String(activeProfileDoc._id) : null,
+      isDualRole,
+      redirectUrl,
       version: CONFIG.version,
       partnerRoles: state.partnerRoles,
       locationsEndpointAvailable: Boolean(state.partnerLocationsUrl),
-      message: "Credentials exchange completed successfully.",
+      message: isDualRole
+        ? "Handshake successful! Partner returned both CPO and eMSP roles. Auto-created complementary profiles for both roles."
+        : "Credentials exchange completed successfully.",
     });
   } catch (error) {
     state.status = "ERROR";
@@ -259,20 +324,106 @@ router.get("/connections", async (req, res) => {
       });
     }
 
+    // Auto-heal / auto-provision complementary profiles for dual-role partners:
+    // If a profile in MongoDB has both CPO and EMSP in partnerRoles, ensure both
+    // simulator profiles (EMSP and CPO) exist so the user sees both roles.
+    const allProfiles = await OcpiConnectionProfile.find({}).lean();
+    for (const p of allProfiles) {
+      const pRoles = (p.partnerRoles || []).map((r) => String(r.role).toUpperCase());
+      const isDual = pRoles.includes("CPO") && pRoles.includes("EMSP");
+      if (isDual && p.remoteVersionsUrl) {
+        const compRole = p.simulatorRole === "EMSP" ? "CPO" : "EMSP";
+        const compExists = allProfiles.some(
+          (other) =>
+            other.remoteVersionsUrl === p.remoteVersionsUrl &&
+            other.simulatorRole === compRole
+        );
+        if (!compExists) {
+          try {
+            const existingEndpoints = await OcpiEndpoint.find({ profileId: p._id }).lean();
+            const partnerName =
+              p.partnerRoles?.[0]?.business_details?.name ||
+              p.partnerRoles?.[1]?.business_details?.name ||
+              "Partner";
+
+            const locUrl = compRole === "EMSP"
+              ? existingEndpoints.find((ep) => ep.identifier === "locations" && (ep.role === "SENDER" || !ep.role))?.url || null
+              : existingEndpoints.find((ep) => ep.identifier === "locations" && (ep.role === "RECEIVER" || !ep.role))?.url || null;
+
+            const newProfile = new OcpiConnectionProfile({
+              name: `${partnerName} (as ${compRole === "EMSP" ? "eMSP ➔ Partner CPO" : "CPO ➔ Partner eMSP"})`,
+              simulatorRole: compRole,
+              connectionMode: p.connectionMode || "HANDSHAKE",
+              status: p.status || "CONNECTED",
+              remoteToken: p.remoteToken,
+              localToken: p.localToken || CONFIG.localToken,
+              bootstrapToken: p.bootstrapToken,
+              remoteVersionsUrl: p.remoteVersionsUrl,
+              remoteCredentialsUrl: p.remoteCredentialsUrl,
+              partnerLocationsUrl: locUrl,
+              partnerRoles: p.partnerRoles,
+              lastError: null,
+              lastHandshakeAt: p.lastHandshakeAt || new Date(),
+            });
+            await newProfile.save();
+
+            // Clone version doc
+            const ver = await OcpiVersion.findOne({ profileId: p._id }).lean();
+            const newVer = new OcpiVersion({
+              profileId: newProfile._id,
+              version: ver?.version || CONFIG.version,
+              versionsUrl: ver?.versionsUrl || p.remoteVersionsUrl,
+              discoveryStatus: "DISCOVERED",
+              source: "DISCOVERED",
+              enabled: true,
+            });
+            await newVer.save();
+
+            // Clone endpoints
+            for (const ep of existingEndpoints) {
+              await OcpiEndpoint.create({
+                profileId: newProfile._id,
+                versionId: newVer._id,
+                identifier: ep.identifier,
+                role: ep.role,
+                url: ep.url,
+                source: "DISCOVERED",
+                enabled: true,
+              });
+            }
+          } catch (autoHealErr) {
+            console.error("[AutoHeal] Failed to auto-provision complementary profile:", autoHealErr.message);
+          }
+        }
+      }
+    }
+
     const query = req.query.role ? { simulatorRole: String(req.query.role).toUpperCase() } : {};
     const profiles = await OcpiConnectionProfile.find(query).sort({ updatedAt: -1 }).lean();
     const connections = [];
 
     for (const p of profiles) {
       const endpointsCount = await OcpiEndpoint.countDocuments({ profileId: p._id });
-      const partner = p.partnerRoles?.[0] || {};
       const role = p.simulatorRole || "EMSP";
+      const targetPartnerRole = role === "EMSP" ? "CPO" : "EMSP";
+      const partner = (p.partnerRoles || []).find((r) => r.role === targetPartnerRole) || (p.partnerRoles || [])[0] || {};
+      const allPartnerRoles = (p.partnerRoles || []).map((r) => r.role);
+      const isDualRolePartner = allPartnerRoles.includes("CPO") && allPartnerRoles.includes("EMSP");
+
       const redirectUrl = role === "EMSP" ? `/emsp?profileId=${p._id}` : `/cpo?profileId=${p._id}`;
+
+      const roleExplanation = role === "EMSP"
+        ? "Simulator acts as eMSP ➔ Interacting with Partner CPO (pull locations, tariffs, send commands)"
+        : "Simulator acts as CPO ➔ Interacting with Partner eMSP (manage locations, push sessions & CDRs)";
 
       connections.push({
         id: String(p._id),
         name: p.name || `Partner (${role})`,
         simulatorRole: role,
+        targetPartnerRole,
+        allPartnerRoles,
+        isDualRolePartner,
+        roleExplanation,
         connectionMode: p.connectionMode || "HANDSHAKE",
         status: p.status || "DISCONNECTED",
         partnerParty:
@@ -280,6 +431,7 @@ router.get("/connections", async (req, res) => {
           (partner.country_code && partner.party_id ? " / " : "") +
           (partner.party_id || ""),
         partnerName: partner.business_details?.name || "Partner",
+        partnerRole: partner.role || targetPartnerRole,
         partnerRoles: p.partnerRoles || [],
         remoteVersionsUrl: p.remoteVersionsUrl || null,
         remoteCredentialsUrl: p.remoteCredentialsUrl || null,
@@ -737,10 +889,15 @@ router.get("/cpo/config", (req, res) => {
 router.get("/cpo/locations", async (req, res) => {
   try {
     let locations = [];
+    const filter = {};
+    if (req.query.profileId && mongoose.isValidObjectId(req.query.profileId)) {
+      filter.connectionProfileId = req.query.profileId;
+    }
     if (getConnectionStatus() === "CONNECTED") {
-      const docs = await OcpiLocation.find({}).sort({ updatedAt: -1 }).lean();
+      const docs = await OcpiLocation.find(filter).sort({ updatedAt: -1 }).lean();
       locations = docs.map((doc) => ({
         ...toCleanOcpiLocation(doc),
+        connectionProfileId: doc.connectionProfileId ? String(doc.connectionProfileId) : null,
         mongoId: doc._id.toString(),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -748,6 +905,7 @@ router.get("/cpo/locations", async (req, res) => {
     } else {
       locations = Array.from(memoryLocations.values()).map((loc) => ({
         ...toCleanOcpiLocation(loc),
+        connectionProfileId: loc.connectionProfileId ? String(loc.connectionProfileId) : null,
         mongoId: null,
       }));
     }
@@ -764,10 +922,22 @@ router.get("/cpo/locations/:id", async (req, res) => {
     let location = null;
     if (getConnectionStatus() === "CONNECTED") {
       const doc = await OcpiLocation.findOne({ id }).lean();
-      if (doc) location = { ...toCleanOcpiLocation(doc), mongoId: doc._id.toString() };
+      if (doc) {
+        location = {
+          ...toCleanOcpiLocation(doc),
+          connectionProfileId: doc.connectionProfileId ? String(doc.connectionProfileId) : null,
+          mongoId: doc._id.toString(),
+        };
+      }
     } else {
       const mem = memoryLocations.get(id);
-      if (mem) location = { ...toCleanOcpiLocation(mem), mongoId: null };
+      if (mem) {
+        location = {
+          ...toCleanOcpiLocation(mem),
+          connectionProfileId: mem.connectionProfileId ? String(mem.connectionProfileId) : null,
+          mongoId: null,
+        };
+      }
     }
 
     if (!location) return res.status(404).json({ error: `Location '${id}' not found.` });
@@ -850,6 +1020,12 @@ router.post(["/cpo/locations", "/api/cpo/locations"], async (req, res) => {
       delete payload.inlineTariff;
     }
 
+    if (payload.connectionProfileId && !mongoose.isValidObjectId(payload.connectionProfileId)) {
+      payload.connectionProfileId = null;
+    } else if (!payload.connectionProfileId) {
+      payload.connectionProfileId = null;
+    }
+
     if (getConnectionStatus() === "CONNECTED") {
       const existing = await OcpiLocation.findOne({ id: payload.id });
       if (existing) {
@@ -864,7 +1040,10 @@ router.post(["/cpo/locations", "/api/cpo/locations"], async (req, res) => {
       success: true,
       message: `Location '${payload.id}' created successfully.`,
       locationId: payload.id,
-      location: toCleanOcpiLocation(payload),
+      location: {
+        ...toCleanOcpiLocation(payload),
+        connectionProfileId: payload.connectionProfileId,
+      },
     });
   } catch (err) {
     return res.status(500).json({ error: "Failed to create location: " + err.message });
@@ -900,6 +1079,12 @@ router.put(["/cpo/locations/:id", "/api/cpo/locations/:id"], async (req, res) =>
       });
     }
 
+    if (payload.connectionProfileId && !mongoose.isValidObjectId(payload.connectionProfileId)) {
+      payload.connectionProfileId = null;
+    } else if (payload.connectionProfileId === "") {
+      payload.connectionProfileId = null;
+    }
+
     if (getConnectionStatus() === "CONNECTED") {
       await OcpiLocation.findOneAndUpdate({ id }, payload, { upsert: true, new: true, runValidators: true });
     }
@@ -908,7 +1093,10 @@ router.put(["/cpo/locations/:id", "/api/cpo/locations/:id"], async (req, res) =>
     return res.json({
       success: true,
       message: `Location '${id}' updated successfully.`,
-      location: toCleanOcpiLocation(payload),
+      location: {
+        ...toCleanOcpiLocation(payload),
+        connectionProfileId: payload.connectionProfileId || null,
+      },
     });
   } catch (err) {
     return res.status(500).json({ error: "Failed to update location: " + err.message });
@@ -933,6 +1121,45 @@ router.delete(["/cpo/locations/:id", "/api/cpo/locations/:id", "/cpo/locations",
     return res.json({ success: true, message: `Location '${id}' deleted successfully.` });
   } catch (err) {
     return res.status(500).json({ error: "Failed to delete location: " + err.message });
+  }
+});
+
+// POST /api/cpo/locations/push - Push Location(s) directly to connected partner eMSP Receiver endpoint
+router.post(["/cpo/locations/push", "/api/cpo/locations/push"], async (req, res) => {
+  try {
+    const { profileId, locationId } = req.body || {};
+    const result = await pushLocationsToEmsp({
+      profileId: profileId || req.query?.profileId || null,
+      locationId: locationId || req.query?.locationId || null,
+    });
+    return res.json(result);
+  } catch (err) {
+    const status = err.response?.status || (err.message.includes("No CPO") ? 400 : 502);
+    return res.status(status).json({
+      success: false,
+      error: err.message,
+      httpStatus: err.response?.status ?? null,
+    });
+  }
+});
+
+// POST /api/cpo/locations/:id/push - Push single location directly to connected partner eMSP Receiver endpoint
+router.post(["/cpo/locations/:id/push", "/api/cpo/locations/:id/push"], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { profileId } = req.body || {};
+    const result = await pushLocationsToEmsp({
+      profileId: profileId || req.query?.profileId || null,
+      locationId: id,
+    });
+    return res.json(result);
+  } catch (err) {
+    const status = err.response?.status || (err.message.includes("No CPO") ? 400 : 502);
+    return res.status(status).json({
+      success: false,
+      error: err.message,
+      httpStatus: err.response?.status ?? null,
+    });
   }
 });
 
