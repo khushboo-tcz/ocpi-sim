@@ -441,7 +441,24 @@ async function persistHandshakeToDb({ role, partnerRoles, remoteToken, remoteVer
         profile = await OcpiConnectionProfile.findOne({ name: connectionName, simulatorRole: role });
       }
       if (!profile && remoteVersionsUrl) {
-        profile = await OcpiConnectionProfile.findOne({ remoteVersionsUrl, simulatorRole: role });
+        const cleanUrl = String(remoteVersionsUrl).replace(/\/+$/, "");
+        profile = await OcpiConnectionProfile.findOne({
+          simulatorRole: role,
+          remoteVersionsUrl: { $regex: new RegExp(`^${cleanUrl}/?$`, "i") },
+        });
+      }
+      if (!profile && Array.isArray(partnerRoles) && partnerRoles.length > 0) {
+        const first = partnerRoles[0];
+        if (first.country_code && first.party_id) {
+          profile = await OcpiConnectionProfile.findOne({
+            simulatorRole: role,
+            "partnerRoles.country_code": first.country_code,
+            "partnerRoles.party_id": first.party_id,
+          });
+        }
+      }
+      if (!profile) {
+        profile = await OcpiConnectionProfile.findOne({ simulatorRole: role });
       }
       if (!profile) {
         profile = new OcpiConnectionProfile({ simulatorRole: role, name: connectionName || `${role} Connection` });
