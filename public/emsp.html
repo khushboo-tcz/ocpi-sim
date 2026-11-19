@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OCPI eMSP Dashboard &amp; Locations Explorer</title>
+<title>OCPI 2.2.1 eMSP Dashboard &amp; Operations Center</title>
 <style>
   :root {
     --primary: #2458d3;
@@ -22,11 +22,11 @@
     background: #0f172a;
     border-bottom: 1px solid #1e293b;
     color: white;
-    padding: 22px max(20px, calc((100% - 1300px) / 2));
+    padding: 20px max(20px, calc((100% - 1340px) / 2));
   }
   header h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
   header p { margin: 0; color: #94a3b8; font-size: 13.5px; }
-  nav { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  nav { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   nav a {
     color: #cbd5e1;
     text-decoration: none;
@@ -59,7 +59,35 @@
     color: #7dd3fc;
   }
 
-  main { max-width: 1300px; margin: 24px auto 48px; padding: 0 20px; }
+  main { max-width: 1340px; margin: 20px auto 48px; padding: 0 20px; }
+
+  /* Profile Bar */
+  .profile-bar {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    box-shadow: 0 1px 4px rgba(15,23,42,0.04);
+  }
+  .profile-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .profile-select-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
 
   /* Stats Grid */
   .stats-grid {
@@ -72,18 +100,68 @@
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 18px 20px;
+    padding: 16px 18px;
     box-shadow: 0 2px 6px rgba(15,23,42,.03);
   }
-  .stat-label { font-size: 12px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .stat-value { font-size: 22px; font-weight: 750; color: var(--text); margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+  .stat-label { font-size: 11.5px; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-value { font-size: 20px; font-weight: 750; color: var(--text); margin-top: 5px; display: flex; align-items: center; gap: 8px; }
+
+  /* Tab Navigation */
+  .tabs-nav {
+    display: flex;
+    gap: 6px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 20px;
+    overflow-x: auto;
+    padding-bottom: 0;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 10px 16px;
+    font-size: 13.5px;
+    font-weight: 650;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .tab-btn:hover {
+    color: var(--text);
+    background: #f8fafc;
+  }
+  .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: white;
+  }
+  .tab-badge {
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  .tab-btn.active .tab-badge {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
 
   /* Sections / Cards */
   .panel {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 22px;
+    padding: 20px;
     margin-bottom: 22px;
     box-shadow: 0 2px 8px rgba(15,23,42,.04);
   }
@@ -97,17 +175,17 @@
     padding-bottom: 14px;
     border-bottom: 1px solid var(--border);
   }
-  .panel-title { font-size: 18px; font-weight: 750; margin: 0; display: flex; align-items: center; gap: 8px; }
-  .panel-subtitle { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+  .panel-title { font-size: 17px; font-weight: 750; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .panel-subtitle { font-size: 12.5px; color: var(--muted); margin: 3px 0 0; }
 
   /* Badges */
   .badge {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 4px 10px;
+    padding: 4px 9px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
   }
   .badge.ok { background: #dcfce7; color: #166534; }
@@ -130,7 +208,7 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 9px 15px;
+    padding: 8px 14px;
     border: 0;
     border-radius: 8px;
     background: var(--primary);
@@ -149,28 +227,32 @@
   button.secondary:hover, .btn.secondary:hover { background: #dbe3ef; }
   button.outline { background: transparent; border: 1px solid var(--border); color: #334155; }
   button.outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+  button.danger { background: #dc2626; color: white; }
+  button.danger:hover { background: #b91c1c; }
+  button.success { background: #16a34a; color: white; }
+  button.success:hover { background: #15803d; }
   .btn-sm { padding: 5px 9px; font-size: 11.5px; border-radius: 6px; }
 
-  /* Info Key-Value Grid */
+  /* Key-Value Grid */
   .kv-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
+    gap: 14px;
   }
   .kv-box {
     background: #f8fafc;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 11px 13px;
   }
-  .kv-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
-  .kv-value { font-size: 13px; font-weight: 600; color: #0f172a; word-break: break-all; }
-  .code-font { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .kv-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 3px; }
+  .kv-value { font-size: 12.5px; font-weight: 600; color: #0f172a; word-break: break-all; }
+  .code-font { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
 
-  /* Table */
+  /* Tables */
   .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: white; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-  th, td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
   th { background: #f8fafc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
   tbody tr:hover { background: #f8fafc; }
   tbody tr:last-child td { border-bottom: 0; }
@@ -178,7 +260,7 @@
   /* Toolbar */
   .toolbar {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
     flex-wrap: wrap;
     margin-bottom: 14px;
@@ -186,18 +268,35 @@
   .search-input {
     flex: 1;
     min-width: 200px;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
     background: white;
     font: inherit;
+    font-size: 12.5px;
+  }
+
+  /* Form Elements */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 12px; font-weight: 700; color: #334155; }
+  .form-group input, .form-group select {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font: inherit;
     font-size: 13px;
   }
 
-  /* Locations Cards */
+  /* Locations Hierarchical Grid */
   .locations-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 16px;
     margin-top: 14px;
   }
@@ -220,18 +319,18 @@
     margin-bottom: 8px;
   }
   .loc-title { font-size: 15px; font-weight: 750; color: #0f172a; margin: 0; }
-  .loc-address { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-bottom: 12px; }
+  .loc-address { font-size: 12px; color: var(--muted); line-height: 1.45; margin-bottom: 10px; }
   .loc-geo {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     background: #f1f5f9;
-    padding: 4px 8px;
+    padding: 3px 8px;
     border-radius: 6px;
     font-family: ui-monospace, monospace;
     font-size: 11px;
     color: #334155;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
   .evse-list {
     border-top: 1px solid var(--border);
@@ -241,42 +340,64 @@
   .evse-item {
     background: #f8fafc;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
-    margin-bottom: 6px;
-    font-size: 12px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
   }
   .evse-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-weight: 650;
-    margin-bottom: 4px;
+    font-size: 12px;
+    margin-bottom: 6px;
   }
-  .connector-tags {
+  .connector-box {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 9px;
+    margin-top: 6px;
     display: flex;
-    gap: 5px;
+    justify-content: space-between;
+    align-items: center;
     flex-wrap: wrap;
-    margin-top: 4px;
+    gap: 6px;
+    font-size: 11.5px;
   }
-  .connector-tag {
-    background: #e2e8f0;
-    color: #1e293b;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 10.5px;
-    font-weight: 600;
+
+  /* Tariffs Grid */
+  .tariffs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
   }
+  .tariff-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.03);
+  }
+  .tariff-price-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 12px;
+  }
+  .tariff-price-row:last-child { border-bottom: none; }
 
   /* Empty State */
   .empty-state {
     text-align: center;
-    padding: 40px 20px;
+    padding: 36px 20px;
     color: var(--muted);
   }
   .empty-icon {
-    font-size: 32px;
-    margin-bottom: 8px;
+    font-size: 30px;
+    margin-bottom: 6px;
     opacity: 0.6;
   }
 
@@ -292,6 +413,48 @@
   }
   .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
   .alert-info { background: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; }
+  .alert-success { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+  }
+  .modal-card {
+    background: white;
+    border-radius: 12px;
+    max-width: 650px;
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-body {
+    padding: 18px 20px;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  .modal-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
 
   pre {
     margin: 0;
@@ -300,7 +463,7 @@
     color: #d1fae5;
     border-radius: 8px;
     font-size: 12px;
-    max-height: 320px;
+    max-height: 380px;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-all;
@@ -309,15 +472,59 @@
   @media (max-width: 850px) {
     .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .locations-grid { grid-template-columns: 1fr; }
-    header { padding: 20px; }
+    header { padding: 18px; }
+  }
+
+  /* Connection Action Menu Dropdown */
+  .menu-dropdown {
+    display: inline-block;
+    position: relative;
+  }
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+    z-index: 100;
+    min-width: 175px;
+    text-align: left;
+    padding: 5px 0;
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 550;
+    cursor: pointer;
+    text-align: left;
+    color: #1e293b;
+    transition: background 0.12s ease;
+  }
+  .menu-item:hover {
+    background: #f1f5f9;
+  }
+  .menu-item.danger-text {
+    color: #dc2626;
+  }
+  .menu-item.danger-text:hover {
+    background: #fee2e2;
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>eMSP Dashboard &amp; Locations Explorer</h1>
-  <p>OCPI 2.2.1 · Connected Partner Workspace (Operating as e-Mobility Service Provider)</p>
+  <h1>eMSP Dashboard &amp; Operations Center</h1>
+  <p>OCPI 2.2.1 · Independent e-Mobility Service Provider Simulator connecting to External CPOs</p>
   <nav>
     <a href="/">← Handshake</a>
     <a href="/cpo">CPO Dashboard</a>
@@ -329,174 +536,389 @@
 </header>
 
 <main>
+  <!-- Connection Profile Switcher Bar -->
+  <section class="profile-bar">
+    <div class="profile-bar-left">
+      <span class="profile-select-label">Active CPO Connection:</span>
+      <select id="profileSwitcher" class="search-input" style="min-width: 280px; font-weight: 650;">
+        <option value="">Loading CPO connections…</option>
+      </select>
+      <span id="connStatusBadge" class="badge dot ok">CONNECTED</span>
+      <span id="profilePartyBadge" class="badge neutral">IN / CZS</span>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button class="outline btn-sm" id="btnRefreshActiveProfile" title="Refresh state for selected profile">🔄 Refresh</button>
+      <a href="/" class="btn btn-sm outline" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Manage handshakes on the Handshake Connections page">🔗 Manage Handshakes</a>
+    </div>
+  </section>
+
   <!-- Stats Row -->
   <section class="stats-grid">
     <div class="stat-card">
-      <div class="stat-label">Connection Status</div>
-      <div class="stat-value">
-        <span id="connStatusBadge" class="badge dot ok">CONNECTED</span>
-      </div>
+      <div class="stat-label">CPO Partner</div>
+      <div class="stat-value" id="partyDisplay">IN / CZS</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Partner Party</div>
-      <div class="stat-value" id="partyDisplay">DE / CCL</div>
+      <div class="stat-label">Stored Locations</div>
+      <div class="stat-value" id="locationsCountDisplay">0 Stations</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Discovered Endpoints</div>
-      <div class="stat-value" id="endpointsCountDisplay">13 Endpoints</div>
+      <div class="stat-label">Stored Tariffs</div>
+      <div class="stat-value" id="tariffsCountDisplay">0 Tariffs</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Partner Locations</div>
-      <div class="stat-value" id="locationsCountDisplay">0 Loaded</div>
+      <div class="stat-label">Sessions &amp; CDRs</div>
+      <div class="stat-value" id="sessionsCdrsCountDisplay">0 / 0</div>
     </div>
   </section>
 
   <div id="errorBanner" class="alert alert-error" style="display: none;"></div>
+  <div id="successBanner" class="alert alert-success" style="display: none;"></div>
 
-  <!-- Handshake & Partner Details -->
-  <section class="panel">
-    <div class="panel-header">
-      <div>
-        <h2 class="panel-title">Handshake Details</h2>
-        <div class="panel-subtitle">Active credentials exchanged with partner CPO</div>
-      </div>
-      <div>
-        <button id="toggleRawJsonBtn" class="outline btn-sm">Toggle Raw JSON</button>
-      </div>
-    </div>
+  <!-- Tabs Navigation -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" data-tab="tab-locations">
+      ⚡ Locations &amp; Chargers <span class="tab-badge" id="tabBadgeLocations">0</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-tariffs">
+      🏷️ Tariffs <span class="tab-badge" id="tabBadgeTariffs">0</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-sessions">
+      🔋 Sessions <span class="tab-badge" id="tabBadgeSessions">0</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-cdrs">
+      📑 CDRs <span class="tab-badge" id="tabBadgeCdrs">0</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-endpoints">
+      📋 Discovered Endpoints <span class="tab-badge" id="tabBadgeEndpoints">0</span>
+    </button>
+  </nav>
 
-    <div class="kv-grid">
-      <div class="kv-box">
-        <div class="kv-label">Partner Name &amp; Role</div>
-        <div class="kv-value" id="partnerNameDisplay">ChargeCloud UAT (CPO)</div>
-      </div>
-      <div class="kv-box">
-        <div class="kv-label">Discovered Versions URL</div>
-        <div class="kv-value code-font" id="versionsUrlDisplay">—</div>
-      </div>
-      <div class="kv-box">
-        <div class="kv-label">Credentials Endpoint</div>
-        <div class="kv-value code-font" id="credentialsUrlDisplay">—</div>
-      </div>
-      <div class="kv-box">
-        <div class="kv-label">Partner Locations SENDER URL</div>
-        <div class="kv-value code-font" id="locationsUrlDisplay">—</div>
-      </div>
-      <div class="kv-box" style="border: 1.5px solid #3b82f6; background: #f0f7ff;">
-        <div class="kv-label" style="color: #1d4ed8; display: flex; justify-content: space-between; align-items: center;">
-          <span>Simulator Auth Token (Inbound)</span>
-          <span id="simulatorTokenBadge" class="badge ok" style="font-size: 10px; padding: 2px 7px;">Active</span>
+  <!-- ===================================================================== -->
+  <!-- TAB 1: LOCATIONS & CHARGERS                                           -->
+  <!-- ===================================================================== -->
+  <section id="tab-locations" class="tab-content active">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Charging Locations &amp; EVSEs</h2>
+          <div class="panel-subtitle">Hierarchical view of Stations, EVSEs, and Connectors pulled from external CPO</div>
         </div>
-        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
-          <span id="simulatorTokenDisplay" class="code-font" style="letter-spacing: 0.5px; color: #1e3a8a; font-weight: 700;">••••••••••••</span>
-          <div style="display: flex; gap: 6px;">
-            <button id="copySimTokenBtn" class="btn btn-sm" style="background: #2563eb; color: white;" title="Copy raw token">Copy Raw</button>
-            <button id="copySimHeaderBtn" class="btn btn-sm" style="background: #1e40af; color: white;" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
-          </div>
-        </div>
-        <div style="font-size: 11px; color: #475569; margin-top: 5px;">
-          OCPI 2.2.1 Header: <code id="simHeaderPreview">Authorization: Token &lt;base64&gt;</code> (Both Base64 &amp; Raw accepted)
+        <div style="display: flex; gap: 8px;">
+          <button id="pullLocationsBtn" class="btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Pull Locations from CPO
+          </button>
         </div>
       </div>
-      <div class="kv-box">
-        <div class="kv-label">Partner Remote Token (Outbound)</div>
-        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
-          <span id="tokenDisplay" class="code-font" style="letter-spacing: 0.5px;">••••••••••••</span>
-          <div style="display: flex; gap: 6px;">
-            <button id="copyTokenBtn" class="outline btn-sm" title="Copy raw token">Copy Raw</button>
-            <button id="copyPartnerHeaderBtn" class="outline btn-sm" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
-          </div>
-        </div>
-        <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
-          Outbound Header: <code id="partnerHeaderPreview">Authorization: Token &lt;base64&gt;</code>
-        </div>
-      </div>
-      <div class="kv-box">
-        <div class="kv-label">Protocol Version</div>
-        <div class="kv-value">OCPI 2.2.1</div>
-      </div>
-    </div>
 
-    <div id="rawJsonWrap" style="display: none; margin-top: 16px;">
-      <pre id="rawJsonBox">Loading...</pre>
+      <div class="toolbar">
+        <input type="search" id="locationSearchInput" class="search-input" placeholder="Filter by station name, city, address, EVSE UID or connector ID…">
+        <span id="locationsFilterCount" class="badge neutral">0 Stations</span>
+      </div>
+
+      <div id="locationsListContainer">
+        <div class="empty-state">
+          <div class="empty-icon">⚡</div>
+          <p style="font-weight: 650; color: #1e293b; margin-bottom: 4px;">No locations stored for this CPO</p>
+          <p style="font-size: 13px; max-width: 480px; margin: 0 auto 16px;">
+            Click <strong>Pull Locations from CPO</strong> to perform an authenticated OCPI <code>GET</code> request to the CPO's Locations endpoint and store them in <code>ocpiEmspLocations</code>.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- Discovered Endpoints Listing Screen -->
-  <section class="panel">
-    <div class="panel-header">
-      <div>
-        <h2 class="panel-title">Discovered Partner Endpoints</h2>
-        <div class="panel-subtitle">All modules advertised by the partner in the OCPI 2.2.1 version details response</div>
+  <!-- ===================================================================== -->
+  <!-- TAB 2: TARIFFS                                                        -->
+  <!-- ===================================================================== -->
+  <section id="tab-tariffs" class="tab-content">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Tariffs Received from CPO</h2>
+          <div class="panel-subtitle">Pricing rules, energy/time components, and restrictions stored in <code>ocpiEmspTariffs</code></div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="pullTariffsBtn" class="btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Pull Tariffs from CPO
+          </button>
+        </div>
       </div>
-      <div>
-        <span id="endpointCounter" class="badge info">13 Modules</span>
+
+      <div class="toolbar">
+        <input type="search" id="tariffSearchInput" class="search-input" placeholder="Search tariffs by ID, currency, or type…">
+        <span id="tariffsFilterCount" class="badge neutral">0 Tariffs</span>
       </div>
-    </div>
 
-    <div class="toolbar">
-      <input type="search" id="endpointSearch" class="search-input" placeholder="Filter endpoint by module (e.g. locations, commands, tokens)...">
-      <select id="endpointRoleFilter" class="search-input" style="flex: 0 0 160px;">
-        <option value="ALL">All Roles</option>
-        <option value="SENDER">SENDER</option>
-        <option value="RECEIVER">RECEIVER</option>
-      </select>
-    </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Module</th>
-            <th>Role</th>
-            <th>Endpoint URL</th>
-            <th style="text-align: right;">Action</th>
-          </tr>
-        </thead>
-        <tbody id="endpointsTableBody">
-          <tr><td colspan="4" class="empty-state">Loading endpoints...</td></tr>
-        </tbody>
-      </table>
+      <div id="tariffsListContainer">
+        <div class="empty-state">
+          <div class="empty-icon">🏷️</div>
+          <p style="font-weight: 650; color: #1e293b; margin-bottom: 4px;">No tariffs stored for this CPO</p>
+          <p style="font-size: 13px; max-width: 480px; margin: 0 auto 16px;">
+            Click <strong>Pull Tariffs from CPO</strong> to fetch available tariffs from the CPO's Tariffs endpoint.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- Location-Based Data Explorer -->
-  <section class="panel">
-    <div class="panel-header">
-      <div>
-        <h2 class="panel-title">Location-Based Data (EVSEs &amp; Chargers)</h2>
-        <div class="panel-subtitle">Fetch and inspect real-time charging stations from the partner's Locations SENDER endpoint</div>
+  <!-- ===================================================================== -->
+  <!-- TAB 3: SESSIONS                                                       -->
+  <!-- ===================================================================== -->
+  <section id="tab-sessions" class="tab-content">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Charging Sessions</h2>
+          <div class="panel-subtitle">Active and completed charging sessions received via OCPI PUT/PATCH or started via EMSP</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btnRefreshSessions" class="outline btn-sm">🔄 Refresh Sessions</button>
+        </div>
       </div>
-      <div style="display: flex; gap: 8px;">
-        <button id="fetchLocationsBtn">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          Fetch Locations from Partner
-        </button>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Status</th>
+              <th>Station / EVSE</th>
+              <th>Energy (kWh)</th>
+              <th>Total Cost</th>
+              <th>Started At</th>
+              <th>Last Updated</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsTableBody">
+            <tr><td colspan="8" class="empty-state">No sessions found for this connection profile.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- TAB 4: CDRS                                                           -->
+  <!-- ===================================================================== -->
+  <section id="tab-cdrs" class="tab-content">
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Charge Detail Records (CDRs)</h2>
+          <div class="panel-subtitle">Finalized CDRs posted by external CPOs to <code>POST /ocpi/emsp/2.2.1/cdrs</code></div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btnRefreshCdrs" class="outline btn-sm">🔄 Refresh CDRs</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>CDR ID</th>
+              <th>Session ID</th>
+              <th>Total Energy</th>
+              <th>Total Cost</th>
+              <th>Start Time</th>
+              <th>Stop Time</th>
+              <th>Auth Method</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="cdrsTableBody">
+            <tr><td colspan="8" class="empty-state">No CDRs received yet for this connection profile.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- TAB 5: DISCOVERED ENDPOINTS & CREDENTIALS                              -->
+  <!-- ===================================================================== -->
+  <section id="tab-endpoints" class="tab-content">
+    <!-- Active Profile Credentials & Details -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Active Profile Credentials &amp; Tokens</h2>
+          <div class="panel-subtitle">Security tokens exchanged with the selected CPO partner</div>
+        </div>
+        <div>
+          <button id="toggleRawJsonBtn" class="outline btn-sm">Toggle Raw Status JSON</button>
+        </div>
+      </div>
+
+      <div class="kv-grid">
+        <div class="kv-box">
+          <div class="kv-label">Partner Name &amp; Role</div>
+          <div class="kv-value" id="partnerNameDisplay">—</div>
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">CPO Versions URL</div>
+          <div class="kv-value code-font" id="versionsUrlDisplay">—</div>
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Credentials Endpoint</div>
+          <div class="kv-value code-font" id="credentialsUrlDisplay">—</div>
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Locations SENDER URL</div>
+          <div class="kv-value code-font" id="locationsUrlDisplay">—</div>
+        </div>
+        <div class="kv-box" style="border: 1.5px solid #3b82f6; background: #f0f7ff;">
+          <div class="kv-label" style="color: #1d4ed8; display: flex; justify-content: space-between; align-items: center;">
+            <span>eMSP Simulator Inbound Token</span>
+            <span id="simulatorTokenBadge" class="badge ok" style="font-size: 10px; padding: 2px 7px;">Active</span>
+          </div>
+          <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px; flex-wrap: wrap;">
+            <span id="simulatorTokenDisplay" class="code-font" style="letter-spacing: 0.5px; color: #1e3a8a; font-weight: 700; word-break: break-all; cursor: pointer;">••••••••••••</span>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button id="toggleSimTokenBtn" class="outline btn-sm" style="background: white;">👁 Show Raw</button>
+              <button id="copySimTokenBtn" class="btn btn-sm" style="background: #2563eb; color: white;">Copy Raw</button>
+              <button id="copySimHeaderBtn" class="btn btn-sm" style="background: #1e40af; color: white;">Copy Base64 Header</button>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: #475569; margin-top: 5px;">
+            OCPI Header: <code id="simHeaderPreview">Authorization: Token &lt;base64&gt;</code>
+          </div>
+        </div>
+        <div class="kv-box">
+          <div class="kv-label">Partner CPO Remote Token (Outbound)</div>
+          <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px; flex-wrap: wrap;">
+            <span id="tokenDisplay" class="code-font" style="letter-spacing: 0.5px; word-break: break-all; cursor: pointer;">••••••••••••</span>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button id="togglePartnerTokenBtn" class="outline btn-sm" style="background: white;">👁 Show Raw</button>
+              <button id="copyTokenBtn" class="outline btn-sm">Copy Raw</button>
+              <button id="copyPartnerHeaderBtn" class="outline btn-sm">Copy Base64 Header</button>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 5px;">
+            Outbound Header: <code id="partnerHeaderPreview">Authorization: Token &lt;base64&gt;</code>
+          </div>
+        </div>
+      </div>
+
+      <div id="rawJsonWrap" style="display: none; margin-top: 16px;">
+        <pre id="rawJsonBox">Loading...</pre>
       </div>
     </div>
 
-    <div class="toolbar" id="locationToolbar" style="display: none;">
-      <input type="search" id="locationSearch" class="search-input" placeholder="Search by name, city, address, or EVSE ID...">
-      <span id="locationsFilteredCount" class="badge neutral">0 Stations</span>
-    </div>
+    <!-- Discovered Partner Endpoints Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Discovered Partner Endpoints</h2>
+          <div class="panel-subtitle">Endpoints advertised by CPO and stored in <code>ocpiEndpoints</code> mapped to this connection</div>
+        </div>
+        <div>
+          <span id="endpointCounter" class="badge info">0 Modules</span>
+        </div>
+      </div>
 
-    <div id="locationsContainer">
-      <div class="empty-state">
-        <div class="empty-icon">⚡</div>
-        <p style="font-weight: 650; color: #1e293b; margin-bottom: 4px;">No locations loaded yet</p>
-        <p style="font-size: 13px; max-width: 480px; margin: 0 auto 16px;">
-          Click <strong>Fetch Locations from Partner</strong> to send an authenticated OCPI <code>GET</code> request to the discovered Chargecloud Locations endpoint.
-        </p>
+      <div class="toolbar">
+        <input type="search" id="endpointSearch" class="search-input" placeholder="Filter endpoint by module (e.g. locations, tariffs, commands)…">
+        <select id="endpointRoleFilter" class="search-input" style="flex: 0 0 160px;">
+          <option value="ALL">All Roles</option>
+          <option value="SENDER">SENDER</option>
+          <option value="RECEIVER">RECEIVER</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Role</th>
+              <th>Endpoint URL</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="endpointsTableBody">
+            <tr><td colspan="4" class="empty-state">Loading endpoints…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
 </main>
 
+<!-- Start Session Modal -->
+<div id="startSessionModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 style="margin: 0; font-size: 16px;">⚡ Start Remote Session (START_SESSION)</h3>
+      <button class="outline btn-sm" onclick="closeModal('startSessionModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info" style="font-size: 12px; margin-bottom: 14px;">
+        Sends an OCPI 2.2.1 <code>POST /commands/START_SESSION</code> to the connected CPO.
+      </div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Location ID</label>
+        <input type="text" id="cmdLocationId" readonly style="background: #f1f5f9;">
+      </div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>EVSE UID</label>
+        <input type="text" id="cmdEvseUid" readonly style="background: #f1f5f9;">
+      </div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Connector ID</label>
+        <input type="text" id="cmdConnectorId" readonly style="background: #f1f5f9;">
+      </div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>eMSP User Token (RFID / Contract)</label>
+        <input type="text" id="cmdTokenUid" value="TOK-998877">
+      </div>
+      <div id="cmdResultBox" style="display: none; margin-top: 12px;">
+        <pre id="cmdResultPre"></pre>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline" onclick="closeModal('startSessionModal')">Cancel</button>
+      <button class="success" id="btnConfirmStartSession">Start Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- Raw Payload Modal -->
+<div id="payloadModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 style="margin: 0; font-size: 16px;" id="payloadModalTitle">Raw OCPI Payload</h3>
+      <button class="outline btn-sm" onclick="closeModal('payloadModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <pre id="payloadModalPre"></pre>
+    </div>
+    <div class="modal-footer">
+      <button class="outline" id="btnCopyPayload">Copy JSON</button>
+      <button class="btn" onclick="closeModal('payloadModal')">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
+  let currentProfileId = "";
   let endpointsData = [];
   let locationsData = [];
+  let tariffsData = [];
+  let sessionsData = [];
+  let cdrsData = [];
+  let connectionsList = [];
   let rawStatus = null;
   let rawToken = "";
+  let rawSimToken = "";
+  let showFullSimToken = false;
+  let showFullPartnerToken = false;
+  let cachedSimB64 = "";
+  let cachedPartnerB64 = "";
 
   const moduleColors = {
     locations: "ok",
@@ -505,20 +927,212 @@
     tokens: "warn",
     sessions: "info",
     cdrs: "ok",
-    tariffs: "warn"
+    tariffs: "warn",
   };
 
   function getBadgeClass(identifier) {
     return moduleColors[identifier.toLowerCase()] || "neutral";
   }
 
+  // Tab switching logic
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+      const targetId = btn.getAttribute("data-tab");
+      const targetTab = document.getElementById(targetId);
+      if (targetTab) targetTab.classList.add("active");
+    });
+  });
+
+  // Modal helpers
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "flex";
+  }
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  }
+  window.addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal-overlay")) {
+      e.target.style.display = "none";
+    }
+  });
+
+  function showJsonModal(title, obj) {
+    document.getElementById("payloadModalTitle").textContent = title;
+    const pre = document.getElementById("payloadModalPre");
+    const jsonStr = JSON.stringify(obj, null, 2);
+    pre.textContent = jsonStr;
+    document.getElementById("btnCopyPayload").onclick = () => copyText(jsonStr);
+    openModal("payloadModal");
+  }
+
+  function showBanner(type, msg) {
+    const err = document.getElementById("errorBanner");
+    const succ = document.getElementById("successBanner");
+    err.style.display = "none";
+    succ.style.display = "none";
+    if (type === "error") {
+      err.textContent = msg;
+      err.style.display = "flex";
+      setTimeout(() => { err.style.display = "none"; }, 8000);
+    } else {
+      succ.textContent = msg;
+      succ.style.display = "flex";
+      setTimeout(() => { succ.style.display = "none"; }, 5000);
+    }
+  }
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function copyText(val) {
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => {
+      alert("Copied to clipboard: " + val.slice(0, 50) + (val.length > 50 ? "…" : ""));
+    });
+  }
+
+  // Token displays
+  function updateSimTokenDisplay() {
+    const el = document.getElementById("simulatorTokenDisplay");
+    const btn = document.getElementById("toggleSimTokenBtn");
+    const preview = document.getElementById("simHeaderPreview");
+    if (!el) return;
+    if (rawSimToken) {
+      if (showFullSimToken) {
+        el.textContent = rawSimToken;
+        if (btn) btn.textContent = "🙈 Hide Raw";
+      } else {
+        el.textContent = rawSimToken.length > 16
+          ? rawSimToken.slice(0, 8) + "••••••••" + rawSimToken.slice(-6)
+          : rawSimToken;
+        if (btn) btn.textContent = "👁 Show Raw";
+      }
+      if (preview) preview.textContent = `Authorization: Token ${cachedSimB64}`;
+    } else {
+      el.textContent = "—";
+      if (btn) btn.textContent = "👁 Show Raw";
+      if (preview) preview.textContent = "Authorization: Token <base64>";
+    }
+  }
+
+  function updatePartnerTokenDisplay() {
+    const el = document.getElementById("tokenDisplay");
+    const btn = document.getElementById("togglePartnerTokenBtn");
+    const preview = document.getElementById("partnerHeaderPreview");
+    if (!el) return;
+    if (rawToken) {
+      if (showFullPartnerToken) {
+        el.textContent = rawToken;
+        if (btn) btn.textContent = "🙈 Hide Raw";
+      } else {
+        el.textContent = rawToken.length > 16
+          ? rawToken.slice(0, 8) + "••••••••" + rawToken.slice(-6)
+          : rawToken;
+        if (btn) btn.textContent = "👁 Show Raw";
+      }
+      if (preview) preview.textContent = `Authorization: Token ${cachedPartnerB64}`;
+    } else {
+      el.textContent = "—";
+      if (btn) btn.textContent = "👁 Show Raw";
+      if (preview) preview.textContent = "Authorization: Token <base64>";
+    }
+  }
+
+  // Load Connections List into dropdown
+  async function loadConnections() {
+    try {
+      const res = await fetch("/api/connections");
+      if (!res.ok) throw new Error("Could not load connection profiles");
+      const data = await res.json();
+      connectionsList = data.connections || [];
+
+      const select = document.getElementById("profileSwitcher");
+      select.innerHTML = "";
+
+      if (!connectionsList.length) {
+        select.innerHTML = '<option value="">No CPO Connections (Click + New CPO Handshake)</option>';
+        return;
+      }
+
+      connectionsList.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = `${c.name || "CPO"} (${c.partnerParty || "Partner"}) · ${c.status}`;
+        if (c.id === currentProfileId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    } catch (err) {
+      console.error("loadConnections error:", err);
+    }
+  }
+
+  async function switchProfile(id) {
+    if (!id) return;
+    currentProfileId = id;
+    const url = new URL(window.location);
+    url.searchParams.set("profileId", id);
+    window.history.pushState({}, "", url);
+
+    await fetch("/api/connections/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId: id }),
+    });
+
+    await refreshAll();
+  }
+
+  // Load Status for Active Profile
   async function loadStatus() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const profileId = urlParams.get('profileId');
-      const fetchUrl = profileId ? `/api/status?profileId=${encodeURIComponent(profileId)}` : "/api/status?role=EMSP";
+      const paramProfileId = urlParams.get("profileId");
+      if (paramProfileId && !currentProfileId) {
+        currentProfileId = paramProfileId;
+      }
+      if (!currentProfileId && connectionsList.length > 0) {
+        currentProfileId = connectionsList[0].id;
+      }
+
+      if (!currentProfileId) {
+        document.getElementById("connStatusBadge").textContent = "DISCONNECTED";
+        document.getElementById("connStatusBadge").className = "badge dot warn";
+        document.getElementById("partyDisplay").textContent = "—";
+        document.getElementById("profilePartyBadge").textContent = "—";
+        document.getElementById("partnerNameDisplay").textContent = "No CPO Connected";
+        document.getElementById("versionsUrlDisplay").textContent = "—";
+        document.getElementById("credentialsUrlDisplay").textContent = "—";
+        document.getElementById("locationsUrlDisplay").textContent = "—";
+        rawSimToken = "";
+        rawToken = "";
+        cachedSimB64 = "";
+        cachedPartnerB64 = "";
+        updateSimTokenDisplay();
+        updatePartnerTokenDisplay();
+        document.getElementById("rawJsonBox").textContent = JSON.stringify({ status: "DISCONNECTED", message: "No active CPO connection profile" }, null, 2);
+        endpointsData = [];
+        document.getElementById("endpointCounter").textContent = "0 Modules";
+        document.getElementById("tabBadgeEndpoints").textContent = "0";
+        renderEndpoints();
+        return;
+      }
+
+      const fetchUrl = `/api/status?profileId=${encodeURIComponent(currentProfileId)}`;
+
       const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error("Could not load simulator status (HTTP " + res.status + ")");
+      if (!res.ok) throw new Error("Could not load simulator status");
       const data = await res.json();
       rawStatus = data;
       rawToken = data.remoteToken || "";
@@ -531,69 +1145,37 @@
         document.getElementById("connStatusBadge").className = "badge dot ok";
       }
 
-      // Party display
       const partner = data.partnerRoles?.[0] || {};
-      const party = (partner.country_code || "DE") + " / " + (partner.party_id || "CCL");
+      const party = (partner.country_code || "IN") + " / " + (partner.party_id || "CZS");
       document.getElementById("partyDisplay").textContent = party;
-      document.getElementById("partnerNameDisplay").textContent = (partner.business_details?.name || "ChargeCloud UAT") + ` (${partner.role || "CPO"})`;
+      document.getElementById("profilePartyBadge").textContent = party;
+      document.getElementById("partnerNameDisplay").textContent =
+        (partner.business_details?.name || "External CPO") + ` (${partner.role || "CPO"})`;
 
-      // URLs
       document.getElementById("versionsUrlDisplay").textContent = data.remoteVersionsUrl || "—";
       document.getElementById("credentialsUrlDisplay").textContent = data.remoteCredentialsUrl || "—";
       document.getElementById("locationsUrlDisplay").textContent = data.partnerLocationsUrl || "—";
 
-      // Token Displays
-      const rawSimToken = data.activeSimulatorToken || data.localToken || data.bootstrapToken || "";
-      const simB64 = data.activeSimulatorTokenBase64 || (rawSimToken ? btoa(rawSimToken) : "");
-      const partnerB64 = data.remoteTokenBase64 || (rawToken ? btoa(rawToken) : "");
+      rawSimToken = data.activeSimulatorToken || data.localToken || data.bootstrapToken || "";
+      cachedSimB64 = data.activeSimulatorTokenBase64 || (rawSimToken ? btoa(rawSimToken) : "");
+      cachedPartnerB64 = data.remoteTokenBase64 || (rawToken ? btoa(rawToken) : "");
 
-      const simBadge = document.getElementById("simulatorTokenBadge");
-      if (simBadge) {
-        if (data.status === "CONNECTED" && data.localToken) {
-          simBadge.textContent = "Post-Handshake (Active)";
-          simBadge.className = "badge ok";
-        } else {
-          simBadge.textContent = "Pre-Handshake (Bootstrap)";
-          simBadge.className = "badge warn";
-        }
-      }
+      updateSimTokenDisplay();
+      updatePartnerTokenDisplay();
 
-      if (rawSimToken) {
-        document.getElementById("simulatorTokenDisplay").textContent =
-          rawSimToken.length > 16
-            ? rawSimToken.slice(0, 8) + "••••••••" + rawSimToken.slice(-6)
-            : rawSimToken;
-        document.getElementById("simHeaderPreview").textContent = `Authorization: Token ${simB64}`;
-      } else {
-        document.getElementById("simulatorTokenDisplay").textContent = "—";
-        document.getElementById("simHeaderPreview").textContent = "Authorization: Token <base64>";
-      }
-
-      if (rawToken) {
-        document.getElementById("tokenDisplay").textContent =
-          rawToken.length > 16
-            ? rawToken.slice(0, 8) + "••••••••" + rawToken.slice(-6)
-            : rawToken;
-        document.getElementById("partnerHeaderPreview").textContent = `Authorization: Token ${partnerB64}`;
-      } else {
-        document.getElementById("tokenDisplay").textContent = "—";
-        document.getElementById("partnerHeaderPreview").textContent = "Authorization: Token <base64>";
-      }
-
-      // Raw JSON
       document.getElementById("rawJsonBox").textContent = JSON.stringify(data, null, 2);
 
-      // Discovered Endpoints
       endpointsData = data.partnerEndpoints || [];
-      document.getElementById("endpointsCountDisplay").textContent = endpointsData.length + " Endpoints";
       document.getElementById("endpointCounter").textContent = endpointsData.length + " Modules";
+      document.getElementById("tabBadgeEndpoints").textContent = endpointsData.length;
       renderEndpoints();
 
     } catch (err) {
-      showError("Status load error: " + err.message);
+      showBanner("error", "Status error: " + err.message);
     }
   }
 
+  // Render Endpoints
   function renderEndpoints() {
     const tbody = document.getElementById("endpointsTableBody");
     const search = document.getElementById("endpointSearch").value.toLowerCase().trim();
@@ -611,51 +1193,66 @@
     }
 
     tbody.innerHTML = filtered.map(ep => {
-      const isLocations = ep.identifier.toLowerCase() === "locations" && ep.role === "SENDER";
-      const actionBtn = isLocations
-        ? `<button class="btn-sm" onclick="fetchLocations()">Fetch Locations</button>`
-        : `<button class="outline btn-sm" onclick="copyText('${ep.url}')">Copy URL</button>`;
+      const isLoc = ep.identifier.toLowerCase() === "locations" && ep.role === "SENDER";
+      const isTar = ep.identifier.toLowerCase() === "tariffs" && ep.role === "SENDER";
+      let actionBtn = `<button class="outline btn-sm" onclick="copyText('${ep.url}')">Copy URL</button>`;
+      if (isLoc) actionBtn = `<button class="btn-sm" onclick="pullLocations()">Pull Locations</button>`;
+      if (isTar) actionBtn = `<button class="btn-sm" style="background:#d97706;" onclick="pullTariffs()">Pull Tariffs</button>`;
 
       return `
         <tr>
           <td><span class="badge ${getBadgeClass(ep.identifier)}">${ep.identifier.toUpperCase()}</span></td>
           <td><span class="badge ${ep.role === 'SENDER' ? 'ok' : 'info'}">${ep.role}</span></td>
-          <td class="code-font" style="word-break: break-all;">${ep.url}</td>
+          <td class="code-font" style="word-break: break-all;">${escapeHtml(ep.url)}</td>
           <td style="text-align: right;">${actionBtn}</td>
         </tr>
       `;
     }).join("");
   }
 
-  async function fetchLocations() {
-    const btn = document.getElementById("fetchLocationsBtn");
-    const container = document.getElementById("locationsContainer");
-    const errorBanner = document.getElementById("errorBanner");
-    errorBanner.style.display = "none";
+  // =========================================================================
+  // LOCATIONS
+  // =========================================================================
+  async function loadStoredLocations() {
+    if (!currentProfileId) {
+      locationsData = [];
+      document.getElementById("locationsCountDisplay").textContent = "0 Stations";
+      document.getElementById("tabBadgeLocations").textContent = "0";
+      renderLocations();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/emsp/locations?profileId=${encodeURIComponent(currentProfileId)}`);
+      if (!res.ok) throw new Error("Could not load stored locations");
+      const data = await res.json();
+      locationsData = data.locations || [];
+      document.getElementById("locationsCountDisplay").textContent = locationsData.length + " Stations";
+      document.getElementById("tabBadgeLocations").textContent = locationsData.length;
+      renderLocations();
+    } catch (err) {
+      console.error("loadStoredLocations error:", err);
+    }
+  }
 
+  async function pullLocations() {
+    const btn = document.getElementById("pullLocationsBtn");
     btn.disabled = true;
     const oldText = btn.innerHTML;
-    btn.innerHTML = "Fetching Locations…";
+    btn.innerHTML = "Pulling Locations from CPO…";
 
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const profileId = urlParams.get('profileId');
-      const fetchUrl = profileId ? `/api/locations?profileId=${encodeURIComponent(profileId)}` : "/api/locations";
-      const res = await fetch(fetchUrl);
-      const result = await res.json();
+      const res = await fetch("/api/emsp/locations/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: currentProfileId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to pull locations");
 
-      if (!res.ok) {
-        throw new Error(result.error || ("HTTP " + res.status));
-      }
-
-      locationsData = result.locations || [];
-      document.getElementById("locationsCountDisplay").textContent = locationsData.length + " Stations";
-      document.getElementById("locationToolbar").style.display = "flex";
-
-      renderLocations();
-
+      showBanner("success", `Successfully pulled ${data.count || 0} locations from CPO.`);
+      await loadStoredLocations();
     } catch (err) {
-      showError("Failed to fetch locations: " + err.message);
+      showBanner("error", err.message);
     } finally {
       btn.disabled = false;
       btn.innerHTML = oldText;
@@ -663,16 +1260,15 @@
   }
 
   function renderLocations() {
-    const container = document.getElementById("locationsContainer");
-    const search = document.getElementById("locationSearch").value.toLowerCase().trim();
+    const container = document.getElementById("locationsListContainer");
+    const search = document.getElementById("locationSearchInput").value.toLowerCase().trim();
 
     const filtered = locationsData.filter(loc => {
       if (!search) return true;
-      const blob = JSON.stringify(loc).toLowerCase();
-      return blob.includes(search);
+      return JSON.stringify(loc).toLowerCase().includes(search);
     });
 
-    document.getElementById("locationsFilteredCount").textContent = filtered.length + " Stations";
+    document.getElementById("locationsFilterCount").textContent = filtered.length + " Stations";
 
     if (!filtered.length) {
       container.innerHTML = `
@@ -686,54 +1282,73 @@
     container.innerHTML = `
       <div class="locations-grid">
         ${filtered.map(loc => {
-          const coordinates = loc.coordinates || {};
-          const geoStr = (coordinates.latitude && coordinates.longitude)
-            ? `${Number(coordinates.latitude).toFixed(4)}, ${Number(coordinates.longitude).toFixed(4)}`
+          const coords = loc.coordinates || {};
+          const geoStr = coords.latitude && coords.longitude
+            ? `${Number(coords.latitude).toFixed(4)}, ${Number(coords.longitude).toFixed(4)}`
             : "—";
-
           const evses = loc.evses || [];
 
           return `
             <div class="location-card">
               <div class="loc-header">
                 <div>
-                  <h3 class="loc-title">${escapeHtml(loc.name || loc.id || "Unnamed Location")}</h3>
-                  <span class="badge neutral" style="font-size: 11px; margin-top: 3px;">ID: ${escapeHtml(loc.id || "—")}</span>
+                  <h3 class="loc-title">${escapeHtml(loc.name || loc.id)}</h3>
+                  <span class="badge neutral" style="font-size: 11px; margin-top: 3px;">ID: ${escapeHtml(loc.id)}</span>
                 </div>
-                <span class="badge ${loc.parking_type ? 'info' : 'ok'}">${escapeHtml(loc.parking_type || "ACTIVE")}</span>
+                <div style="display: flex; gap: 4px;">
+                  <span class="badge ${loc.parking_type ? 'info' : 'ok'}">${escapeHtml(loc.parking_type || "ACTIVE")}</span>
+                  <button class="outline btn-sm" onclick='showJsonModal("Location: ${escapeHtml(loc.id)}", ${JSON.stringify(loc)})' title="View complete original OCPI Location payload">JSON</button>
+                </div>
               </div>
 
               <div class="loc-address">
                 ${escapeHtml(loc.address || "—")}, ${escapeHtml(loc.city || "")} ${escapeHtml(loc.postal_code || "")}<br>
-                <strong>${escapeHtml(loc.country || "DE")}</strong>
+                <strong>${escapeHtml(loc.country || "IN")}</strong>
               </div>
 
               <div class="loc-geo">
                 📍 <span>${geoStr}</span>
-                ${(coordinates.latitude && coordinates.longitude) ? `<a href="https://maps.google.com/?q=${coordinates.latitude},${coordinates.longitude}" target="_blank" style="color: #2458d3; margin-left: 4px; text-decoration: none;">Map ↗</a>` : ''}
+                ${(coords.latitude && coords.longitude) ? `<a href="https://maps.google.com/?q=${coords.latitude},${coords.longitude}" target="_blank" style="color: #2458d3; margin-left: 4px; text-decoration: none;">Map ↗</a>` : ''}
               </div>
 
               <div class="evse-list">
-                <div style="font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 6px;">
-                  EVSEs (${evses.length})
+                <div style="font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                  <span>EVSEs (${evses.length})</span>
+                  <span style="font-weight: 400; color: #64748b;">${escapeHtml(loc.time_zone || "UTC")}</span>
                 </div>
-                ${evses.slice(0, 4).map(evse => {
+
+                ${evses.map(evse => {
                   const connectors = evse.connectors || [];
+                  const evseStatus = evse.status || "UNKNOWN";
+                  const statusClass = evseStatus === "AVAILABLE" ? "ok" : evseStatus === "CHARGING" ? "info" : "warn";
+
                   return `
                     <div class="evse-item">
                       <div class="evse-header">
                         <span>${escapeHtml(evse.uid || evse.evse_id || "EVSE")}</span>
-                        <span class="badge ${evse.status === 'AVAILABLE' ? 'ok' : evse.status === 'CHARGING' ? 'info' : 'warn'}" style="font-size: 10px; padding: 2px 6px;">
-                          ${escapeHtml(evse.status || "UNKNOWN")}
+                        <span class="badge ${statusClass}" style="font-size: 10px; padding: 2px 6px;">
+                          ${escapeHtml(evseStatus)}
                         </span>
                       </div>
-                      <div class="connector-tags">
-                        ${connectors.map(c => `<span class="connector-tag">${escapeHtml(c.standard || "Connector")} · ${c.max_electric_power ? (c.max_electric_power/1000).toFixed(0)+'kW' : ''}</span>`).join('')}
-                      </div>
+
+                      ${connectors.map(c => {
+                        const kwStr = c.max_electric_power ? (c.max_electric_power / 1000).toFixed(0) + " kW" : "";
+                        return `
+                          <div class="connector-box">
+                            <div>
+                              <strong>${escapeHtml(c.id || "1")}</strong> · ${escapeHtml(c.standard || "Connector")}
+                              <span style="color: #64748b; margin-left: 4px;">${kwStr} ${escapeHtml(c.power_type || "")}</span>
+                            </div>
+                            <button class="btn btn-sm" style="background: #16a34a; font-size: 11px; padding: 3px 8px;"
+                              onclick="openStartSessionModal('${escapeHtml(loc.id)}', '${escapeHtml(evse.uid)}', '${escapeHtml(c.id)}')">
+                              ⚡ Start
+                            </button>
+                          </div>
+                        `;
+                      }).join('')}
                     </div>
                   `;
                 }).join('')}
-                ${evses.length > 4 ? `<div style="font-size: 11px; color: #64748b; margin-top: 4px;">+ ${evses.length - 4} more EVSEs</div>` : ''}
               </div>
             </div>
           `;
@@ -742,76 +1357,369 @@
     `;
   }
 
-  function showError(msg) {
-    const errorBanner = document.getElementById("errorBanner");
-    errorBanner.textContent = msg;
-    errorBanner.style.display = "flex";
+  // =========================================================================
+  // TARIFFS
+  // =========================================================================
+  async function loadStoredTariffs() {
+    if (!currentProfileId) {
+      tariffsData = [];
+      document.getElementById("tariffsCountDisplay").textContent = "0 Tariffs";
+      document.getElementById("tabBadgeTariffs").textContent = "0";
+      renderTariffs();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/emsp/tariffs?profileId=${encodeURIComponent(currentProfileId)}`);
+      if (!res.ok) throw new Error("Could not load stored tariffs");
+      const data = await res.json();
+      tariffsData = data.tariffs || [];
+      document.getElementById("tariffsCountDisplay").textContent = tariffsData.length + " Tariffs";
+      document.getElementById("tabBadgeTariffs").textContent = tariffsData.length;
+      renderTariffs();
+    } catch (err) {
+      console.error("loadStoredTariffs error:", err);
+    }
   }
 
-  function escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+  async function pullTariffs() {
+    const btn = document.getElementById("pullTariffsBtn");
+    btn.disabled = true;
+    const oldText = btn.innerHTML;
+    btn.innerHTML = "Pulling Tariffs from CPO…";
+
+    try {
+      const res = await fetch("/api/emsp/tariffs/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: currentProfileId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to pull tariffs");
+
+      showBanner("success", `Successfully pulled ${data.count || 0} tariffs from CPO.`);
+      await loadStoredTariffs();
+    } catch (err) {
+      showBanner("error", err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
   }
 
-  function copyText(val) {
-    navigator.clipboard.writeText(val).then(() => {
-      alert("Copied to clipboard: " + val);
+  function renderTariffs() {
+    const container = document.getElementById("tariffsListContainer");
+    const search = document.getElementById("tariffSearchInput").value.toLowerCase().trim();
+
+    const filtered = tariffsData.filter(t => {
+      if (!search) return true;
+      return JSON.stringify(t).toLowerCase().includes(search);
     });
+
+    document.getElementById("tariffsFilterCount").textContent = filtered.length + " Tariffs";
+
+    if (!filtered.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p>No tariffs match your search query.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="tariffs-grid">
+        ${filtered.map(t => {
+          const elements = t.elements || [];
+          const altText = t.tariff_alt_text?.[0]?.text || "";
+
+          return `
+            <div class="tariff-card">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <h3 style="margin: 0; font-size: 15px; font-weight: 750;">${escapeHtml(t.id)}</h3>
+                  <span class="badge neutral" style="font-size: 11px; margin-top: 3px;">${escapeHtml(t.currency || "EUR")} · ${escapeHtml(t.type || "REGULAR")}</span>
+                </div>
+                <button class="outline btn-sm" onclick='showJsonModal("Tariff: ${escapeHtml(t.id)}", ${JSON.stringify(t)})'>JSON</button>
+              </div>
+
+              ${altText ? `<div style="font-size: 12px; color: #475569; margin-bottom: 10px;">${escapeHtml(altText)}</div>` : ''}
+
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-top: 8px;">
+                <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px;">Price Components</div>
+                ${elements.map(el => {
+                  const comps = el.price_components || [];
+                  return comps.map(c => `
+                    <div class="tariff-price-row">
+                      <span style="font-weight: 600; color: #1e293b;">${escapeHtml(c.type)}</span>
+                      <span>
+                        <strong>${escapeHtml(t.currency)} ${(Number(c.price) || 0).toFixed(2)}</strong>
+                        ${c.step_size ? `<span style="color:#64748b; font-size: 11px;">(step: ${c.step_size})</span>` : ''}
+                      </span>
+                    </div>
+                  `).join('');
+                }).join('')}
+              </div>
+
+              <div style="font-size: 11px; color: #64748b; margin-top: 10px; display: flex; justify-content: space-between;">
+                <span>Party: ${escapeHtml(t.country_code || "")}/${escapeHtml(t.party_id || "")}</span>
+                <span>Updated: ${t.last_updated ? new Date(t.last_updated).toLocaleDateString() : "—"}</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
-  // Event Listeners
+  // =========================================================================
+  // SESSIONS & CDRS
+  // =========================================================================
+  async function loadStoredSessions() {
+    if (!currentProfileId) {
+      sessionsData = [];
+      document.getElementById("tabBadgeSessions").textContent = "0";
+      updateSessionsCdrsCount();
+      renderSessions();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/emsp/sessions?profileId=${encodeURIComponent(currentProfileId)}`);
+      if (!res.ok) throw new Error("Could not load stored sessions");
+      const data = await res.json();
+      sessionsData = data.sessions || [];
+      document.getElementById("tabBadgeSessions").textContent = sessionsData.length;
+      updateSessionsCdrsCount();
+      renderSessions();
+    } catch (err) {
+      console.error("loadStoredSessions error:", err);
+    }
+  }
+
+  async function loadStoredCdrs() {
+    if (!currentProfileId) {
+      cdrsData = [];
+      document.getElementById("tabBadgeCdrs").textContent = "0";
+      updateSessionsCdrsCount();
+      renderCdrs();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/emsp/cdrs?profileId=${encodeURIComponent(currentProfileId)}`);
+      if (!res.ok) throw new Error("Could not load stored cdrs");
+      const data = await res.json();
+      cdrsData = data.cdrs || [];
+      document.getElementById("tabBadgeCdrs").textContent = cdrsData.length;
+      updateSessionsCdrsCount();
+      renderCdrs();
+    } catch (err) {
+      console.error("loadStoredCdrs error:", err);
+    }
+  }
+
+  function updateSessionsCdrsCount() {
+    document.getElementById("sessionsCdrsCountDisplay").textContent = `${sessionsData.length} / ${cdrsData.length}`;
+  }
+
+  function renderSessions() {
+    const tbody = document.getElementById("sessionsTableBody");
+    if (!sessionsData.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No sessions found for this connection profile.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = sessionsData.map(s => {
+      const isAct = s.status === "ACTIVE";
+      const badgeCls = isAct ? "ok" : s.status === "COMPLETED" ? "neutral" : "info";
+      const costStr = s.total_cost?.incl_vat !== undefined && s.total_cost?.incl_vat !== null
+        ? `${s.currency || "EUR"} ${Number(s.total_cost.incl_vat).toFixed(2)}`
+        : "—";
+
+      return `
+        <tr>
+          <td><strong class="code-font">${escapeHtml(s.id)}</strong></td>
+          <td><span class="badge ${badgeCls}">${escapeHtml(s.status || "ACTIVE")}</span></td>
+          <td>${escapeHtml(s.location_id || "—")} / ${escapeHtml(s.evse_uid || "—")}</td>
+          <td><strong>${(Number(s.kwh) || 0).toFixed(2)}</strong></td>
+          <td>${costStr}</td>
+          <td style="font-size: 11px; color: #64748b;">${s.start_date_time ? new Date(s.start_date_time).toLocaleTimeString() : '—'}</td>
+          <td style="font-size: 11px; color: #64748b;">${s.last_updated ? new Date(s.last_updated).toLocaleTimeString() : '—'}</td>
+          <td style="text-align: right; white-space: nowrap;">
+            ${isAct ? `<button class="danger btn-sm" onclick="stopSession('${escapeHtml(s.id)}')">🛑 Stop</button>` : ''}
+            <button class="outline btn-sm" onclick='showJsonModal("Session: ${escapeHtml(s.id)}", ${JSON.stringify(s)})'>JSON</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function renderCdrs() {
+    const tbody = document.getElementById("cdrsTableBody");
+    if (!cdrsData.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No CDRs received yet for this connection profile.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = cdrsData.map(c => {
+      const costStr = c.total_cost?.incl_vat !== undefined && c.total_cost?.incl_vat !== null
+        ? `${c.currency || "EUR"} ${Number(c.total_cost.incl_vat).toFixed(2)}`
+        : "—";
+
+      return `
+        <tr>
+          <td><strong class="code-font">${escapeHtml(c.id)}</strong></td>
+          <td class="code-font">${escapeHtml(c.session_id || "—")}</td>
+          <td><strong>${(Number(c.total_energy) || 0).toFixed(2)} kWh</strong></td>
+          <td><strong>${costStr}</strong></td>
+          <td style="font-size: 11.5px; color: #64748b;">${c.start_date_time ? new Date(c.start_date_time).toLocaleString() : '—'}</td>
+          <td style="font-size: 11.5px; color: #64748b;">${c.stop_date_time ? new Date(c.stop_date_time).toLocaleString() : '—'}</td>
+          <td><span class="badge neutral">${escapeHtml(c.auth_method || "COMMAND")}</span></td>
+          <td style="text-align: right;">
+            <button class="outline btn-sm" onclick='showJsonModal("CDR: ${escapeHtml(c.id)}", ${JSON.stringify(c)})'>JSON</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  // =========================================================================
+  // COMMANDS: START & STOP SESSION
+  // =========================================================================
+  function openStartSessionModal(locId, evseUid, connId) {
+    document.getElementById("cmdLocationId").value = locId;
+    document.getElementById("cmdEvseUid").value = evseUid;
+    document.getElementById("cmdConnectorId").value = connId;
+    document.getElementById("cmdResultBox").style.display = "none";
+    openModal("startSessionModal");
+  }
+
+  document.getElementById("btnConfirmStartSession").addEventListener("click", async () => {
+    const btn = document.getElementById("btnConfirmStartSession");
+    btn.disabled = true;
+    btn.textContent = "Sending Command…";
+
+    const payload = {
+      profileId: currentProfileId,
+      locationId: document.getElementById("cmdLocationId").value,
+      evseUid: document.getElementById("cmdEvseUid").value,
+      connectorId: document.getElementById("cmdConnectorId").value,
+      token: {
+        country_code: "IN",
+        party_id: "CZS",
+        uid: document.getElementById("cmdTokenUid").value.trim() || "TOK-998877",
+        type: "RFID",
+        contract_id: "CZS-CONTRACT-001",
+      },
+    };
+
+    try {
+      const res = await fetch("/api/emsp/commands/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "START_SESSION command failed");
+
+      document.getElementById("cmdResultPre").textContent = JSON.stringify(data, null, 2);
+      document.getElementById("cmdResultBox").style.display = "block";
+      showBanner("success", `START_SESSION sent. Result: ${data.commandResponse?.result || "OK"}`);
+
+      setTimeout(() => {
+        closeModal("startSessionModal");
+        loadStoredSessions();
+      }, 1500);
+    } catch (err) {
+      showBanner("error", err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Start Session";
+    }
+  });
+
+  async function stopSession(sessionId) {
+    if (!confirm(`Are you sure you want to stop session ${sessionId}?`)) return;
+
+    try {
+      const res = await fetch("/api/emsp/commands/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileId: currentProfileId,
+          sessionId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "STOP_SESSION command failed");
+
+      showBanner("success", `STOP_SESSION sent. Result: ${data.commandResponse?.result || "OK"}`);
+      await loadStoredSessions();
+    } catch (err) {
+      showBanner("error", err.message);
+    }
+  }
+
+  // Profile switcher change
+  document.getElementById("profileSwitcher").addEventListener("change", (e) => {
+    if (e.target.value) {
+      switchProfile(e.target.value);
+    }
+  });
+
+  document.getElementById("btnRefreshActiveProfile").addEventListener("click", () => {
+    refreshAll();
+  });
+
+  // Action buttons
+  document.getElementById("pullLocationsBtn").addEventListener("click", pullLocations);
+  document.getElementById("pullTariffsBtn").addEventListener("click", pullTariffs);
+  document.getElementById("btnRefreshSessions").addEventListener("click", loadStoredSessions);
+  document.getElementById("btnRefreshCdrs").addEventListener("click", loadStoredCdrs);
+
+  document.getElementById("locationSearchInput").addEventListener("input", renderLocations);
+  document.getElementById("tariffSearchInput").addEventListener("input", renderTariffs);
   document.getElementById("endpointSearch").addEventListener("input", renderEndpoints);
   document.getElementById("endpointRoleFilter").addEventListener("change", renderEndpoints);
-  document.getElementById("fetchLocationsBtn").addEventListener("click", fetchLocations);
-  document.getElementById("locationSearch").addEventListener("input", renderLocations);
 
   document.getElementById("toggleRawJsonBtn").addEventListener("click", () => {
     const wrap = document.getElementById("rawJsonWrap");
     wrap.style.display = wrap.style.display === "none" ? "block" : "none";
   });
 
-  const copySimBtn = document.getElementById("copySimTokenBtn");
-  if (copySimBtn) {
-    copySimBtn.addEventListener("click", () => {
-      const simToken = rawStatus?.activeSimulatorToken || rawStatus?.localToken || rawStatus?.bootstrapToken;
-      if (simToken) copyText(simToken);
-      else alert("No simulator token available.");
-    });
-  }
-
-  const copySimHeaderBtn = document.getElementById("copySimHeaderBtn");
-  if (copySimHeaderBtn) {
-    copySimHeaderBtn.addEventListener("click", () => {
-      const simToken = rawStatus?.activeSimulatorToken || rawStatus?.localToken || rawStatus?.bootstrapToken;
-      if (simToken) {
-        copyText(`Token ${btoa(simToken)}`);
-      } else alert("No simulator token available.");
-    });
-  }
-
+  // Token button listeners
+  document.getElementById("toggleSimTokenBtn").addEventListener("click", () => {
+    showFullSimToken = !showFullSimToken;
+    updateSimTokenDisplay();
+  });
+  document.getElementById("togglePartnerTokenBtn").addEventListener("click", () => {
+    showFullPartnerToken = !showFullPartnerToken;
+    updatePartnerTokenDisplay();
+  });
+  document.getElementById("copySimTokenBtn").addEventListener("click", () => {
+    copyText(rawSimToken);
+  });
+  document.getElementById("copySimHeaderBtn").addEventListener("click", () => {
+    if (rawSimToken) copyText(`Token ${btoa(rawSimToken)}`);
+  });
   document.getElementById("copyTokenBtn").addEventListener("click", () => {
-    if (rawToken) {
-      copyText(rawToken);
-    } else {
-      alert("No partner token available.");
-    }
+    copyText(rawToken);
+  });
+  document.getElementById("copyPartnerHeaderBtn").addEventListener("click", () => {
+    if (rawToken) copyText(`Token ${btoa(rawToken)}`);
   });
 
-  const copyPartnerHeaderBtn = document.getElementById("copyPartnerHeaderBtn");
-  if (copyPartnerHeaderBtn) {
-    copyPartnerHeaderBtn.addEventListener("click", () => {
-      if (rawToken) {
-        copyText(`Token ${btoa(rawToken)}`);
-      } else alert("No partner token available.");
-    });
+  async function refreshAll() {
+    await loadStatus();
+    await loadStoredLocations();
+    await loadStoredTariffs();
+    await loadStoredSessions();
+    await loadStoredCdrs();
   }
 
-  loadStatus();
+  // Initialize
+  (async function init() {
+    await loadConnections();
+    await refreshAll();
+  })();
 </script>
 
 </body>

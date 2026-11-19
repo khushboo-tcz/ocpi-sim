@@ -17,27 +17,35 @@ function redact(value) {
   if (Array.isArray(value)) return value.map(redact);
   if (typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, val]) => [
-        key,
-        /authorization|token|secret|password|apiKey|api_key|client_secret|private_key/i.test(key)
-          ? "[REDACTED]"
-          : redact(val),
-      ])
+      Object.entries(value).map(([key, val]) => {
+        // Never redact status messages, messages, errors, or descriptions
+        if (/^(status_message|message|text|description|error|transportErrorMessage|reason|detail)$/i.test(key)) {
+          return [key, val];
+        }
+
+        // Never redact OCPI Token objects or tokens arrays (e.g. RFID tokens with uid, contract_id)
+        if (/^tokens?$/i.test(key) && typeof val === "object" && val !== null) {
+          return [key, redact(val)];
+        }
+
+        // Only redact truly sensitive security credentials if present in a body
+        if (/^(password|client_secret|private_key)$/i.test(key)) {
+          return [key, "[REDACTED]"];
+        }
+
+        return [key, redact(val)];
+      })
     );
   }
-  if (typeof value === "string") {
-    // Redact Authorization Token header values if passed as raw string
-    if (/^Token\s+[A-Za-z0-9+/=_-]+/i.test(value) || /^Bearer\s+[A-Za-z0-9+/=._-]+/i.test(value)) {
-      return "[REDACTED]";
-    }
-  }
+  // Normal string values (including status messages like "Token does not exist") should NOT be redacted
   return value;
 }
 
 function safeHeaders(headers = {}) {
   const result = {};
   for (const [key, value] of Object.entries(headers)) {
-    result[key] = /authorization|token|secret|password|cookie/i.test(key)
+    // Only redact HTTP Authorization headers, proxy authorization, API keys, or session cookies
+    result[key] = /^(authorization|proxy-authorization|x-api-key|cookie|set-cookie)$/i.test(key)
       ? "[REDACTED]"
       : value;
   }

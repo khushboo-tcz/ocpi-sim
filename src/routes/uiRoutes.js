@@ -11,6 +11,18 @@ const OcpiTariff = require("../models/OcpiTariff");
 const OcpiSession = require("../models/OcpiSession");
 const OcpiCdr = require("../models/OcpiCdr");
 const OcpiToken = require("../models/OcpiToken");
+const OcpiEmspTariff = require("../models/OcpiEmspTariff");
+const OcpiEmspLocation = require("../models/OcpiEmspLocation");
+const OcpiEmspSession = require("../models/OcpiEmspSession");
+const OcpiEmspCdr = require("../models/OcpiEmspCdr");
+const {
+  performEmspHandshake,
+  pullTariffsFromCpo,
+  pullLocationsFromCpo,
+  sendStartSessionCommand,
+  sendStopSessionCommand,
+  deleteEmspHandshake,
+} = require("../services/emspService");
 const {
   CONFIG,
   simulator,
@@ -47,6 +59,13 @@ const {
   handleStartSessionCommand,
   handleStopSessionCommand,
   resetSimulation,
+  clearSimulationOperations,
+  getDiscoveredEmspSessionsUrl,
+  getDiscoveredEmspLocationsUrl,
+  pushEvseStatusUpdate,
+  setEvseStatus,
+  getAuthHeaders,
+  cleanHeadersForHttp,
 } = require("../services/sessionSimulationService");
 const { getMemoryLogs, clearMemoryLogs } = require("../services/logger");
 
@@ -240,7 +259,8 @@ router.get("/connections", async (req, res) => {
       });
     }
 
-    const profiles = await OcpiConnectionProfile.find({}).sort({ updatedAt: -1 }).lean();
+    const query = req.query.role ? { simulatorRole: String(req.query.role).toUpperCase() } : {};
+    const profiles = await OcpiConnectionProfile.find(query).sort({ updatedAt: -1 }).lean();
     const connections = [];
 
     for (const p of profiles) {
@@ -265,6 +285,8 @@ router.get("/connections", async (req, res) => {
         remoteCredentialsUrl: p.remoteCredentialsUrl || null,
         partnerLocationsUrl: p.partnerLocationsUrl || null,
         hasToken: Boolean(p.remoteToken),
+        remoteToken: p.remoteToken || null,
+        localToken: p.localToken || null,
         endpointsCount,
         lastHandshakeAt: p.lastHandshakeAt || p.updatedAt,
         updatedAt: p.updatedAt,
@@ -279,6 +301,254 @@ router.get("/connections", async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: "Failed to list connections: " + err.message });
+  }
+});
+
+// POST /api/connections/select - Switch active connection profile
+router.post("/connections/select", async (req, res) => {
+  const { profileId } = req.body || {};
+  if (!profileId) {
+    return res.status(400).json({ error: "profileId is required." });
+  }
+  try {
+    await restoreStateFromDb(profileId);
+    return res.json({
+      success: true,
+      activeProfileId: state.activeProfileId,
+      status: state.status,
+      role: simulator.role,
+      partnerRoles: state.partnerRoles,
+      endpointsCount: state.partnerEndpoints?.length || 0,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to select connection: " + err.message });
+  }
+});
+
+// DELETE /api/connections/:id - Delete a connection profile and scoped data
+router.delete("/connections/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await deleteEmspHandshake(id);
+    return res.json(result);
+  } catch (err) {
+    const status = err.message.includes("not found") ? 404 : (err.message.includes("Invalid") ? 400 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// DELETE /api/emsp/handshake/:connectionProfileId - Complete EMSP Connection Cleanup
+router.delete("/emsp/handshake/:connectionProfileId", async (req, res) => {
+  const { connectionProfileId } = req.params;
+  try {
+    const result = await deleteEmspHandshake(connectionProfileId);
+    return res.json(result);
+  } catch (err) {
+    const status = err.message.includes("not found") ? 404 : (err.message.includes("Invalid") ? 400 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* eMSP CLIENT ACTIONS & DATA ACCESS                                          */
+/* -------------------------------------------------------------------------- */
+
+// POST /api/emsp/handshake - Dedicated EMSP Handshake endpoint
+router.post("/emsp/handshake", async (req, res) => {
+  try {
+    const {
+      profileId,
+      connectionName,
+      partnerVersionsUrl,
+      bootstrapToken,
+      countryCode,
+      partyId,
+      businessName,
+    } = req.body || {};
+
+    const result = await performEmspHandshake({
+      profileId,
+      connectionName,
+      partnerVersionsUrl,
+      bootstrapToken,
+      countryCode,
+      partyId,
+      businessName,
+    });
+    return res.json(result);
+  } catch (err) {
+    state.status = "ERROR";
+    state.lastError = err.response?.data?.status_message || err.message || "Handshake failed";
+    log("EMSP handshake failed", { error: state.lastError });
+    return res.status(502).json({ status: "ERROR", error: state.lastError });
+  }
+});
+
+// POST /api/emsp/tariffs/pull - Pull tariffs from connected CPO
+router.post("/api/emsp/tariffs/pull", async (req, res) => {
+  const profileId = req.body?.profileId || req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.status(400).json({ error: "A valid connectionProfileId is required. Please select or connect a profile." });
+  }
+  try {
+    const result = await pullTariffsFromCpo(profileId);
+    return res.json(result);
+  } catch (err) {
+    const msg = err.response?.data?.status_message || err.message || "Pull tariffs failed";
+    return res.status(502).json({ error: msg, httpStatus: err.response?.status ?? null });
+  }
+});
+
+// Alias for convenience: /api/emsp/tariffs/pull
+router.post("/emsp/tariffs/pull", async (req, res) => {
+  const profileId = req.body?.profileId || req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.status(400).json({ error: "A valid connectionProfileId is required. Please select or connect a profile." });
+  }
+  try {
+    const result = await pullTariffsFromCpo(profileId);
+    return res.json(result);
+  } catch (err) {
+    const msg = err.response?.data?.status_message || err.message || "Pull tariffs failed";
+    return res.status(502).json({ error: msg, httpStatus: err.response?.status ?? null });
+  }
+});
+
+// GET /api/emsp/tariffs - List stored tariffs scoped by connectionProfileId
+router.get("/emsp/tariffs", async (req, res) => {
+  const profileId = req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.json({ count: 0, tariffs: [] });
+  }
+  try {
+    const tariffs = await OcpiEmspTariff.find({ connectionProfileId: profileId })
+      .sort({ last_updated: -1 })
+      .lean();
+    return res.json({ count: tariffs.length, tariffs });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to list tariffs: " + err.message });
+  }
+});
+
+// POST /api/emsp/locations/pull - Pull locations from connected CPO
+router.post("/api/emsp/locations/pull", async (req, res) => {
+  const profileId = req.body?.profileId || req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.status(400).json({ error: "A valid connectionProfileId is required. Please select or connect a profile." });
+  }
+  try {
+    const result = await pullLocationsFromCpo(profileId);
+    return res.json(result);
+  } catch (err) {
+    const msg = err.response?.data?.status_message || err.message || "Pull locations failed";
+    return res.status(502).json({ error: msg, httpStatus: err.response?.status ?? null });
+  }
+});
+
+// Alias for convenience: /api/emsp/locations/pull
+router.post("/emsp/locations/pull", async (req, res) => {
+  const profileId = req.body?.profileId || req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.status(400).json({ error: "A valid connectionProfileId is required. Please select or connect a profile." });
+  }
+  try {
+    const result = await pullLocationsFromCpo(profileId);
+    return res.json(result);
+  } catch (err) {
+    const msg = err.response?.data?.status_message || err.message || "Pull locations failed";
+    return res.status(502).json({ error: msg, httpStatus: err.response?.status ?? null });
+  }
+});
+
+// GET /api/emsp/locations - List stored locations scoped by connectionProfileId
+router.get("/emsp/locations", async (req, res) => {
+  const profileId = req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.json({ count: 0, locations: [] });
+  }
+  try {
+    const locations = await OcpiEmspLocation.find({ connectionProfileId: profileId })
+      .sort({ last_updated: -1 })
+      .lean();
+    return res.json({ count: locations.length, locations });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to list locations: " + err.message });
+  }
+});
+
+// POST /api/emsp/commands/start - Trigger START_SESSION command
+router.post("/emsp/commands/start", async (req, res) => {
+  const { profileId, locationId, evseUid, connectorId, token } = req.body || {};
+  const targetProfileId = profileId || state.activeProfileId;
+  if (!targetProfileId) {
+    return res.status(400).json({ error: "profileId is required." });
+  }
+  try {
+    const result = await sendStartSessionCommand({
+      profileId: targetProfileId,
+      locationId,
+      evseUid,
+      connectorId,
+      token,
+    });
+    return res.json(result);
+  } catch (err) {
+    const msg = err.response?.data?.status_message || err.message || "START_SESSION failed";
+    return res.status(502).json({ error: msg, httpStatus: err.response?.status ?? null });
+  }
+});
+
+// POST /api/emsp/commands/stop - Trigger STOP_SESSION command
+router.post("/emsp/commands/stop", async (req, res) => {
+  const { profileId, sessionId } = req.body || {};
+  const targetProfileId = profileId || state.activeProfileId;
+  if (!targetProfileId) {
+    return res.status(400).json({ error: "profileId is required." });
+  }
+  if (!sessionId) {
+    return res.status(400).json({ error: "sessionId is required." });
+  }
+  try {
+    const result = await sendStopSessionCommand({
+      profileId: targetProfileId,
+      sessionId,
+    });
+    return res.json(result);
+  } catch (err) {
+    const msg = err.response?.data?.status_message || err.message || "STOP_SESSION failed";
+    return res.status(502).json({ error: msg, httpStatus: err.response?.status ?? null });
+  }
+});
+
+// GET /api/emsp/sessions - List stored sessions scoped by connectionProfileId
+router.get("/emsp/sessions", async (req, res) => {
+  const profileId = req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.json({ count: 0, sessions: [] });
+  }
+  try {
+    const sessions = await OcpiEmspSession.find({ connectionProfileId: profileId })
+      .sort({ last_updated: -1, updatedAt: -1 })
+      .lean();
+    return res.json({ count: sessions.length, sessions });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to list sessions: " + err.message });
+  }
+});
+
+// GET /api/emsp/cdrs - List stored CDRs scoped by connectionProfileId
+router.get("/emsp/cdrs", async (req, res) => {
+  const profileId = req.query?.profileId || state.activeProfileId;
+  if (!profileId) {
+    return res.json({ count: 0, cdrs: [] });
+  }
+  try {
+    const cdrs = await OcpiEmspCdr.find({ connectionProfileId: profileId })
+      .sort({ last_updated: -1, updatedAt: -1 })
+      .lean();
+    return res.json({ count: cdrs.length, cdrs });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to list CDRs: " + err.message });
   }
 });
 
@@ -666,6 +936,42 @@ router.delete(["/cpo/locations/:id", "/api/cpo/locations/:id", "/cpo/locations",
   }
 });
 
+// POST /api/cpo/locations/:locationId/evses/:evseUid/status
+// or POST /api/cpo/evse/status (EVSE Status Simulator: BLOCKED / Preparing / Available)
+router.post(
+  [
+    "/cpo/locations/:locationId/evses/:evseUid/status",
+    "/api/cpo/locations/:locationId/evses/:evseUid/status",
+    "/api/cpo/evse/status",
+    "/cpo/evse/status",
+  ],
+  async (req, res) => {
+    try {
+      const locationId = req.params.locationId || req.body?.location_id || req.body?.locationId;
+      const evseUid = req.params.evseUid || req.body?.evse_uid || req.body?.evseUid;
+      const status = req.body?.status || "BLOCKED";
+      const trigger = req.body?.trigger || (status === "BLOCKED" ? "MANUAL_PREPARING_GUN_CONNECTED" : "MANUAL_STATUS_CHANGE");
+
+      if (!locationId) {
+        return res.status(400).json({ success: false, error: "location_id is required." });
+      }
+
+      const outcome = await setEvseStatus({ locationId, evseUid, status, trigger });
+      if (!outcome.success) {
+        return res.status(404).json(outcome);
+      }
+
+      return res.json({
+        success: true,
+        message: `EVSE '${outcome.evse_uid}' status set to ${status} (${trigger})`,
+        ...outcome,
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
 // GET /api/cpo/tariffs
 router.get("/cpo/tariffs", async (req, res) => {
   try {
@@ -924,7 +1230,7 @@ router.get("/logs", async (req, res) => {
           headers: doc.requestHeaders || {},
           body: doc.requestBody ?? null,
         };
-        const resObj =
+        let resObj =
           doc.response !== undefined
             ? doc.response
             : doc.httpStatus != null || doc.responseBody != null
@@ -936,6 +1242,21 @@ router.get("/logs", async (req, res) => {
                 ocpiStatusMessage: doc.ocpiStatusMessage,
               }
             : null;
+
+        if (
+          resObj &&
+          resObj.body &&
+          typeof resObj.body === "object" &&
+          resObj.body.status_message === "[REDACTED]"
+        ) {
+          const actualMsg = doc.ocpiStatusMessage || resObj.ocpiStatusMessage;
+          if (actualMsg && actualMsg !== "[REDACTED]") {
+            resObj = {
+              ...resObj,
+              body: { ...resObj.body, status_message: actualMsg },
+            };
+          }
+        }
         const errObj =
           doc.error ||
           (doc.transportErrorMessage || doc.transportErrorCode
@@ -1053,7 +1374,7 @@ router.get("/logs/:id", async (req, res) => {
           headers: doc.requestHeaders || {},
           body: doc.requestBody ?? null,
         };
-        const resObj =
+        let resObj =
           doc.response !== undefined
             ? doc.response
             : doc.httpStatus != null || doc.responseBody != null
@@ -1065,6 +1386,21 @@ router.get("/logs/:id", async (req, res) => {
                 ocpiStatusMessage: doc.ocpiStatusMessage,
               }
             : null;
+
+        if (
+          resObj &&
+          resObj.body &&
+          typeof resObj.body === "object" &&
+          resObj.body.status_message === "[REDACTED]"
+        ) {
+          const actualMsg = doc.ocpiStatusMessage || resObj.ocpiStatusMessage;
+          if (actualMsg && actualMsg !== "[REDACTED]") {
+            resObj = {
+              ...resObj,
+              body: { ...resObj.body, status_message: actualMsg },
+            };
+          }
+        }
         const errObj =
           doc.error ||
           (doc.transportErrorMessage || doc.transportErrorCode
@@ -1114,6 +1450,9 @@ router.get("/logs/:id", async (req, res) => {
 // DELETE /api/logs
 router.delete("/logs", async (req, res) => {
   clearMemoryLogs();
+  if (typeof clearSimulationOperations === "function") {
+    clearSimulationOperations();
+  }
   try {
     if (getConnectionStatus() === "CONNECTED") {
       await OcpiApiLog.deleteMany({});
@@ -1122,6 +1461,16 @@ router.delete("/logs", async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: "Failed to clear logs: " + err.message });
   }
+});
+
+// DELETE /api/simulation/logs - Clear real-time lifecycle logs
+router.delete("/simulation/logs", (req, res) => {
+  const updated = clearSimulationOperations();
+  return res.json({
+    success: true,
+    message: "Simulation lifecycle logs cleared.",
+    simulation: updated,
+  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -1144,6 +1493,80 @@ router.post("/simulation/config", (req, res) => {
     config: updated,
     simulation: getActiveSimulationState(),
   });
+});
+
+// POST /api/simulation/test-auth (Validate outbound token directly against EMSP)
+router.post("/simulation/test-auth", async (req, res) => {
+  try {
+    const { url, token, format } = req.body || {};
+
+    if (token !== undefined || format !== undefined) {
+      updateSimulationConfig({
+        ...(token !== undefined ? { outboundAuthToken: token } : {}),
+        ...(format !== undefined ? { tokenHeaderFormat: format } : {}),
+      });
+    }
+
+    const testUrl = (url || "").trim() || getDiscoveredEmspSessionsUrl() || getDiscoveredEmspLocationsUrl();
+    if (!testUrl) {
+      return res.status(400).json({
+        success: false,
+        error: "No endpoint URL configured. Please enter the EMSP Sessions or Locations URL.",
+      });
+    }
+
+    const authHeaders = getAuthHeaders();
+    const httpHeaders = cleanHeadersForHttp(authHeaders);
+
+    let result;
+    try {
+      result = await trackedRequest("GET", testUrl, { headers: httpHeaders, timeout: 8000 });
+    } catch (reqErr) {
+      const resp = reqErr.response;
+      const ocpiCode = resp?.data?.status_code;
+      const ocpiMsg = resp?.data?.status_message;
+
+      let advice = "";
+      if (ocpiCode === 2002 || resp?.status === 401 || resp?.status === 403) {
+        advice = authHeaders._token_diagnostic?.format === "BASE64"
+          ? "Remote EMSP returned '2002 Authorization failed'. The remote server may require RAW token instead of Base64. Try selecting 'Raw Token' format."
+          : "Remote EMSP returned '2002 Authorization failed'. Verify that this token matches the partner's token registered in the AWS instance.";
+      } else {
+        advice = ocpiMsg || reqErr.message;
+      }
+
+      return res.json({
+        success: false,
+        url: testUrl,
+        httpStatus: resp?.status || 500,
+        ocpiStatusCode: ocpiCode || null,
+        ocpiStatusMessage: ocpiMsg || reqErr.message,
+        responseHeaders: resp?.headers || null,
+        responseBody: resp?.data || reqErr.message,
+        sentHeaders: authHeaders,
+        diagnostic: advice,
+      });
+    }
+
+    const ocpiCode = result.data?.status_code;
+    const isSuccess = result.status >= 200 && result.status < 300 && (ocpiCode === 1000 || ocpiCode === undefined);
+
+    return res.json({
+      success: isSuccess,
+      url: testUrl,
+      httpStatus: result.status,
+      ocpiStatusCode: ocpiCode,
+      ocpiStatusMessage: result.data?.status_message,
+      responseHeaders: result.headers,
+      responseBody: result.data,
+      sentHeaders: authHeaders,
+      diagnostic: isSuccess
+        ? "Authorization succeeded! The remote partner accepted the token and header format."
+        : `Remote server responded with OCPI status code ${ocpiCode}: ${result.data?.status_message}`,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // POST /api/simulation/start (UI trigger)

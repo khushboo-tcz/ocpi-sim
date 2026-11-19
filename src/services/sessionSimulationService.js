@@ -14,6 +14,7 @@ const {
   memoryCommands,
   requestHeaders,
   trackedRequest,
+  encodeTokenForHeader,
   omitNulls,
   log,
 } = require("./simulatorState");
@@ -35,6 +36,8 @@ const simulationConfig = {
   emspSessionsUrl: null,        // Optional manual override
   emspCdrsUrl: null,            // Optional manual override
   emspLocationsUrl: null,       // Optional manual override
+  outboundAuthToken: null,      // Optional manual token override (for AWS EMSP partner)
+  tokenHeaderFormat: "BASE64",  // "BASE64" (Standard OCPI: Token <b64>) | "RAW" (Token <raw>) | "BEARER_RAW" (Bearer <raw>)
 };
 
 function getSimulationConfig() {
@@ -75,6 +78,12 @@ function updateSimulationConfig(updates = {}) {
   if (updates.emspLocationsUrl !== undefined) {
     simulationConfig.emspLocationsUrl = updates.emspLocationsUrl ? String(updates.emspLocationsUrl).trim() : null;
   }
+  if (updates.outboundAuthToken !== undefined) {
+    simulationConfig.outboundAuthToken = updates.outboundAuthToken ? String(updates.outboundAuthToken).trim() : null;
+  }
+  if (updates.tokenHeaderFormat !== undefined && ["BASE64", "RAW", "BEARER_RAW"].includes(String(updates.tokenHeaderFormat).toUpperCase())) {
+    simulationConfig.tokenHeaderFormat = String(updates.tokenHeaderFormat).toUpperCase();
+  }
   return getSimulationConfig();
 }
 
@@ -113,8 +122,10 @@ function logSimulationOperation({
   type,
   method,
   url,
-  requestBody,
+  requestHeaders = null,
+  requestBody = null,
   httpStatus = 200,
+  responseHeaders = null,
   responseBody = null,
   success = true,
   message = "",
@@ -125,8 +136,10 @@ function logSimulationOperation({
     type,
     method,
     url: url || "INTERNAL",
+    requestHeaders: requestHeaders ? { ...requestHeaders } : null,
     requestBody: requestBody ? omitNulls(requestBody) : null,
     httpStatus,
+    responseHeaders: responseHeaders ? { ...responseHeaders } : null,
     responseBody: responseBody ? omitNulls(responseBody) : null,
     success,
     message,
@@ -203,8 +216,48 @@ function getDiscoveredEmspLocationsUrl() {
 }
 
 function getAuthHeaders() {
-  const token = state.remoteToken || CONFIG.localToken;
-  return requestHeaders(token, crypto.randomUUID());
+  const customToken = simulationConfig.outboundAuthToken;
+  const token = customToken || state.remoteToken || CONFIG.localToken;
+  const format = simulationConfig.tokenHeaderFormat || "BASE64";
+
+  const cleanToken = String(token || "")
+    .trim()
+    .replace(/^Token\s+/i, "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+
+  let headerValue = "";
+  if (format === "RAW") {
+    headerValue = `Token ${cleanToken}`;
+  } else if (format === "BEARER_RAW") {
+    headerValue = `Bearer ${cleanToken}`;
+  } else {
+    // Standard OCPI 2.2.1 requires the credentials token to be Base64-encoded
+    headerValue = `Token ${encodeTokenForHeader(cleanToken)}`;
+  }
+
+  const tokenSource = customToken
+    ? "MANUAL_CONFIG_OVERRIDE"
+    : (state.remoteToken ? "STATE_REMOTE_TOKEN (Handshake)" : "LOCAL_TOKEN_FALLBACK (Warning: not recognized by remote partner!)");
+
+  return {
+    Authorization: headerValue,
+    "X-Request-ID": crypto.randomUUID(),
+    "X-Correlation-ID": crypto.randomUUID(),
+    "Content-Type": "application/json",
+    _token_diagnostic: {
+      source: tokenSource,
+      format,
+      rawToken: cleanToken,
+      headerSent: headerValue,
+    },
+  };
+}
+
+function cleanHeadersForHttp(headersWithMeta) {
+  if (!headersWithMeta) return {};
+  const { _token_diagnostic, ...clean } = headersWithMeta;
+  return clean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -293,14 +346,17 @@ async function pushEvseStatusUpdate({ location, evse, newStatus, trigger }) {
 
   if (emspLocationsBase) {
     const putUrl = `${emspLocationsBase}/${encodeURIComponent(countryCode)}/${encodeURIComponent(partyId)}/${encodeURIComponent(locationId)}/${encodeURIComponent(evseUid)}`;
+    const authHeaders = getAuthHeaders();
     try {
-      const res = await trackedRequest("PUT", putUrl, { headers: getAuthHeaders(), timeout: 6000 }, cleanEvse);
+      const res = await trackedRequest("PUT", putUrl, { headers: cleanHeadersForHttp(authHeaders), timeout: 6000 }, cleanEvse);
       logSimulationOperation({
         type: "EVSE_PUT",
         method: "PUT",
         url: putUrl,
+        requestHeaders: authHeaders,
         requestBody: cleanEvse,
         httpStatus: res.status,
+        responseHeaders: res.headers,
         responseBody: res.data,
         success: res.status >= 200 && res.status < 300,
         message: `[${trigger}] EVSE '${evseUid}' status updated to ${newStatus} on EMSP (${res.status})`,
@@ -311,8 +367,10 @@ async function pushEvseStatusUpdate({ location, evse, newStatus, trigger }) {
         type: "EVSE_PUT",
         method: "PUT",
         url: putUrl,
+        requestHeaders: authHeaders,
         requestBody: cleanEvse,
         httpStatus: putErr.response?.status || 500,
+        responseHeaders: putErr.response?.headers || null,
         responseBody: putErr.response?.data || putErr.message,
         success: false,
         message: `[${trigger}] EVSE '${evseUid}' status update to ${newStatus} failed: ${putErr.message}`,
@@ -333,6 +391,48 @@ async function pushEvseStatusUpdate({ location, evse, newStatus, trigger }) {
   }
 }
 
+async function setEvseStatus({ locationId, evseUid, status = "BLOCKED", trigger = "MANUAL_PREPARING_GUN_CONNECTED" }) {
+  if (!locationId) {
+    return { success: false, error: "locationId is required" };
+  }
+  const loc = await findLocationById(locationId);
+  if (!loc) {
+    return { success: false, error: `Location '${locationId}' not found.` };
+  }
+
+  const evses = Array.isArray(loc.evses) ? loc.evses : [];
+  let evse = null;
+  if (evseUid) {
+    evse = evses.find(
+      (e) => (e.uid && e.uid.toUpperCase() === String(evseUid).toUpperCase().trim()) ||
+             (e.evse_id && e.evse_id.toUpperCase() === String(evseUid).toUpperCase().trim())
+    );
+  } else {
+    evse = evses[0];
+  }
+
+  if (!evse) {
+    return { success: false, error: `EVSE '${evseUid || "default"}' not found at location '${locationId}'.` };
+  }
+
+  const pushResult = await pushEvseStatusUpdate({
+    location: loc,
+    evse,
+    newStatus: status,
+    trigger,
+  });
+
+  return {
+    success: true,
+    location_id: loc.id,
+    evse_uid: evse.uid,
+    status,
+    pushedToEmsp: Boolean(pushResult?.success),
+    evse: pushResult?.evse || evse,
+    details: pushResult,
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* DB / MEMORY ENTITY LOOKUP HELPERS                                          */
 /* -------------------------------------------------------------------------- */
@@ -344,7 +444,7 @@ async function findLocationById(locationId) {
     try {
       const doc = await OcpiLocation.findOne({ id: cleanId }).lean();
       if (doc) return doc;
-    } catch (_) {}
+    } catch (_) { }
   }
   if (memoryLocations.has(cleanId)) return memoryLocations.get(cleanId);
   return (
@@ -361,7 +461,7 @@ async function findSessionById(sessionId) {
     try {
       const doc = await OcpiSession.findOne({ id: cleanId }).lean();
       if (doc) return doc;
-    } catch (_) {}
+    } catch (_) { }
   }
   if (memorySessions.has(cleanId)) return memorySessions.get(cleanId);
   return (
@@ -621,14 +721,17 @@ async function handleStartSessionCommand(payload = {}) {
   const emspSessionsBase = getDiscoveredEmspSessionsUrl();
   if (emspSessionsBase) {
     const putUrl = `${emspSessionsBase}/${sessionObj.country_code}/${sessionObj.party_id}/${sessionObj.id}`;
+    const authHeaders = getAuthHeaders();
     try {
-      const res = await trackedRequest("PUT", putUrl, { headers: getAuthHeaders(), timeout: 6000 }, sessionObj);
+      const res = await trackedRequest("PUT", putUrl, { headers: cleanHeadersForHttp(authHeaders), timeout: 6000 }, sessionObj);
       logSimulationOperation({
         type: "SESSION_PUT",
         method: "PUT",
         url: putUrl,
+        requestHeaders: authHeaders,
         requestBody: sessionObj,
         httpStatus: res.status,
+        responseHeaders: res.headers,
         responseBody: res.data,
         success: res.status >= 200 && res.status < 300,
         message: `Initial Session PUT sent to EMSP (${res.status})`,
@@ -638,8 +741,10 @@ async function handleStartSessionCommand(payload = {}) {
         type: "SESSION_PUT",
         method: "PUT",
         url: putUrl,
+        requestHeaders: authHeaders,
         requestBody: sessionObj,
         httpStatus: putErr.response?.status || 500,
+        responseHeaders: putErr.response?.headers || null,
         responseBody: putErr.response?.data || putErr.message,
         success: false,
         message: `Initial Session PUT failed: ${putErr.message}`,
@@ -767,21 +872,24 @@ function startPeriodicSimulationTimer(sessionObj) {
             { id: sessionObj.id },
             { $set: patchPayload }
           );
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // Dispatch Session PATCH to EMSP
       const emspSessionsBase = getDiscoveredEmspSessionsUrl();
       if (emspSessionsBase) {
         const patchUrl = `${emspSessionsBase}/${sessionObj.country_code}/${sessionObj.party_id}/${sessionObj.id}`;
+        const authHeaders = getAuthHeaders();
         try {
-          const res = await trackedRequest("PATCH", patchUrl, { headers: getAuthHeaders(), timeout: 8000 }, patchPayload);
+          const res = await trackedRequest("PATCH", patchUrl, { headers: cleanHeadersForHttp(authHeaders), timeout: 8000 }, patchPayload);
           logSimulationOperation({
             type: "SESSION_PATCH",
             method: "PATCH",
             url: patchUrl,
+            requestHeaders: authHeaders,
             requestBody: patchPayload,
             httpStatus: res.status,
+            responseHeaders: res.headers,
             responseBody: res.data,
             success: res.status >= 200 && res.status < 300,
             message: `Periodic PATCH sent: ${consumedKwh} kWh, ₹${inclVat} (${res.status})`,
@@ -791,8 +899,10 @@ function startPeriodicSimulationTimer(sessionObj) {
             type: "SESSION_PATCH",
             method: "PATCH",
             url: patchUrl,
+            requestHeaders: authHeaders,
             requestBody: patchPayload,
             httpStatus: patchErr.response?.status || 500,
+            responseHeaders: patchErr.response?.headers || null,
             responseBody: patchErr.response?.data || patchErr.message,
             success: false,
             message: `Periodic PATCH failed: ${patchErr.message}`,
@@ -941,14 +1051,17 @@ async function handleStopSessionCommand(payload = {}) {
   const emspSessionsBase = getDiscoveredEmspSessionsUrl();
   if (emspSessionsBase) {
     const finalPatchUrl = `${emspSessionsBase}/${updatedSession.country_code}/${updatedSession.party_id}/${updatedSession.id}`;
+    const authHeaders = getAuthHeaders();
     try {
-      const res = await trackedRequest("PATCH", finalPatchUrl, { headers: getAuthHeaders(), timeout: 6000 }, finalPatch);
+      const res = await trackedRequest("PATCH", finalPatchUrl, { headers: cleanHeadersForHttp(authHeaders), timeout: 6000 }, finalPatch);
       logSimulationOperation({
         type: "FINAL_PATCH",
         method: "PATCH",
         url: finalPatchUrl,
+        requestHeaders: authHeaders,
         requestBody: finalPatch,
         httpStatus: res.status,
+        responseHeaders: res.headers,
         responseBody: res.data,
         success: res.status >= 200 && res.status < 300,
         message: `Final Session PATCH sent: COMPLETED, ${finalKwh} kWh, ₹${inclVat}`,
@@ -958,8 +1071,10 @@ async function handleStopSessionCommand(payload = {}) {
         type: "FINAL_PATCH",
         method: "PATCH",
         url: finalPatchUrl,
+        requestHeaders: authHeaders,
         requestBody: finalPatch,
         httpStatus: patchErr.response?.status || 500,
+        responseHeaders: patchErr.response?.headers || null,
         responseBody: patchErr.response?.data || patchErr.message,
         success: false,
         message: `Final Session PATCH failed: ${patchErr.message}`,
@@ -1047,14 +1162,17 @@ async function handleStopSessionCommand(payload = {}) {
   // 6. Submit CDR via POST /cdrs to EMSP
   const emspCdrsBase = getDiscoveredEmspCdrsUrl();
   if (emspCdrsBase) {
+    const authHeaders = getAuthHeaders();
     try {
-      const res = await trackedRequest("POST", emspCdrsBase, { headers: getAuthHeaders(), timeout: 6000 }, cdrObj);
+      const res = await trackedRequest("POST", emspCdrsBase, { headers: cleanHeadersForHttp(authHeaders), timeout: 6000 }, cdrObj);
       logSimulationOperation({
         type: "CDR_POST",
         method: "POST",
         url: emspCdrsBase,
+        requestHeaders: authHeaders,
         requestBody: cdrObj,
         httpStatus: res.status,
+        responseHeaders: res.headers,
         responseBody: res.data,
         success: res.status >= 200 && res.status < 300,
         message: `CDR '${cdrId}' submitted to EMSP (${res.status})`,
@@ -1064,8 +1182,10 @@ async function handleStopSessionCommand(payload = {}) {
         type: "CDR_POST",
         method: "POST",
         url: emspCdrsBase,
+        requestHeaders: authHeaders,
         requestBody: cdrObj,
         httpStatus: cdrPostErr.response?.status || 500,
+        responseHeaders: cdrPostErr.response?.headers || null,
         responseBody: cdrPostErr.response?.data || cdrPostErr.message,
         success: false,
         message: `CDR submission failed: ${cdrPostErr.message}`,
@@ -1133,7 +1253,7 @@ function resetSimulation() {
         evse: activeSimulation.targetEvse,
         newStatus: "AVAILABLE",
         trigger: "RESET_SIMULATION",
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }
   activeSimulation.status = "IDLE";
@@ -1154,7 +1274,13 @@ function resetSimulation() {
   activeSimulation.sessionObj = null;
   activeSimulation.cdrObj = null;
   activeSimulation.lastError = null;
+  activeSimulation.operations = [];
 
+  return getActiveSimulationState();
+}
+
+function clearSimulationOperations() {
+  activeSimulation.operations = [];
   return getActiveSimulationState();
 }
 
@@ -1165,10 +1291,15 @@ module.exports = {
   handleStartSessionCommand,
   handleStopSessionCommand,
   resetSimulation,
+  clearSimulationOperations,
   logSimulationOperation,
   findLocationById,
   findSessionById,
+  getDiscoveredEmspSessionsUrl,
   getDiscoveredEmspLocationsUrl,
   toCleanOcpiEvse,
   pushEvseStatusUpdate,
+  setEvseStatus,
+  getAuthHeaders,
+  cleanHeadersForHttp,
 };

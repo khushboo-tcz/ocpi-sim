@@ -423,11 +423,14 @@
           <option value="">Loading locations...</option>
         </select>
       </div>
-      <div>
+      <div style="display: flex; align-items: center;">
         <label>EVSE &amp; Connector:</label>
         <select id="simEvseSelect" class="search-input" style="min-width: 180px; padding: 7px 10px; margin-left: 6px; font-size: 12.5px;">
           <option value="">Select Location First</option>
         </select>
+        <button id="btnMakePreparingCpo" type="button" onclick="triggerCpoPreparing()" style="padding: 6px 12px; margin-left: 8px; font-size: 11.5px; font-weight: 750; cursor: pointer; border-radius: 6px; background: #d97706; color: white; border: none; white-space: nowrap;" title="Set EVSE to Preparing (gun connected · OCPI status BLOCKED)">
+          🔌 make it prepairing
+        </button>
       </div>
       <div style="display: flex; gap: 8px; margin-left: auto;">
         <button id="btnStartSim" class="success" style="padding: 8px 16px;">
@@ -495,6 +498,40 @@
         </div>
       </div>
 
+      <!-- Outbound Token & Header Controls -->
+      <div style="margin-top: 14px; padding: 14px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="font-size: 12px; color: #1e3a8a; text-transform: uppercase;">🔑 Outbound Authorization Token &amp; Header Controls</strong>
+          <span style="font-size: 11px; color: var(--muted);">Controls Authorization header sent to EMSP for Session PUT/PATCH &amp; CDRs</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;">Outbound Authorization Token Override (Optional):</label>
+            <input type="text" id="cfgOutboundToken" class="search-input code-font" style="width: 100%; margin-top: 4px; font-size: 12px;" placeholder="Leave empty to use handshake partner remote token">
+            <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+              If your AWS EMSP returned <code>2002 Authorization failed</code>, enter the exact token expected by the AWS instance here.
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase;">Outbound Header Format:</label>
+            <select id="cfgHeaderFormat" class="search-input" style="width: 100%; margin-top: 4px; font-size: 12px;">
+              <option value="BASE64">Standard OCPI: Authorization: Token &lt;base64&gt;</option>
+              <option value="RAW">Raw Token: Authorization: Token &lt;raw&gt;</option>
+              <option value="BEARER_RAW">Bearer Token: Authorization: Bearer &lt;raw&gt;</option>
+            </select>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+              Toggle between Base64 and Raw if the AWS instance rejects Base64 tokens.
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div id="testAuthFeedback" style="font-size: 12px; display: none; flex: 1;"></div>
+          <button type="button" id="btnTestOutboundAuth" class="outline btn-sm" style="background: white; border-color: #3b82f6; color: #1d4ed8; padding: 6px 14px; font-weight: 650;">
+            🧪 Test Token with EMSP Now
+          </button>
+        </div>
+      </div>
+
       <div style="margin-top: 14px; text-align: right;">
         <button id="btnSaveConfig" class="btn" style="padding: 8px 18px;">Save Simulation Config</button>
       </div>
@@ -517,6 +554,7 @@
             <option value="FINAL_PATCH">Session Completion (Final PATCH)</option>
             <option value="CDR_POST">CDR Submission (POST)</option>
           </select>
+          <button id="btnClearSimLogs" class="outline btn-sm" style="color: #dc2626; border-color: #fca5a5; padding: 4px 10px; font-size: 12px; cursor: pointer;" title="Clear simulation lifecycle logs">Clear Logs</button>
           <span id="simOpsCounter" class="badge neutral">0 Events</span>
         </div>
       </div>
@@ -578,9 +616,10 @@
           <span>Simulator Auth Token (Inbound)</span>
           <span id="simulatorTokenBadge" class="badge ok" style="font-size: 10px; padding: 2px 7px;">Active</span>
         </div>
-        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
-          <span id="simulatorTokenDisplay" class="code-font" style="letter-spacing: 0.5px; color: #1e3a8a; font-weight: 700;">••••••••••••</span>
-          <div style="display: flex; gap: 6px;">
+        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px; flex-wrap: wrap;">
+          <span id="simulatorTokenDisplay" class="code-font" style="letter-spacing: 0.5px; color: #1e3a8a; font-weight: 700; word-break: break-all; cursor: pointer;" title="Click to toggle full raw token">••••••••••••</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button id="toggleSimTokenBtn" class="outline btn-sm" style="background: white; border-color: #93c5fd; color: #1e40af;" title="Show or hide complete raw token">👁 Show Raw</button>
             <button id="copySimTokenBtn" class="btn btn-sm" style="background: #2563eb; color: white;" title="Copy raw token string">Copy Raw</button>
             <button id="copySimHeaderBtn" class="btn btn-sm" style="background: #1e40af; color: white;" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
           </div>
@@ -591,9 +630,10 @@
       </div>
       <div class="kv-box">
         <div class="kv-label">Partner Remote Token (Outbound)</div>
-        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px;">
-          <span id="tokenDisplay" class="code-font" style="letter-spacing: 0.5px;">••••••••••••</span>
-          <div style="display: flex; gap: 6px;">
+        <div class="kv-value" style="display: flex; align-items: center; justify-content: space-between; margin-top: 4px; gap: 8px; flex-wrap: wrap;">
+          <span id="tokenDisplay" class="code-font" style="letter-spacing: 0.5px; word-break: break-all; cursor: pointer;" title="Click to toggle full raw token">••••••••••••</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button id="togglePartnerTokenBtn" class="outline btn-sm" style="background: white;" title="Show or hide complete raw token">👁 Show Raw</button>
             <button id="copyTokenBtn" class="outline btn-sm" title="Copy raw token">Copy Raw</button>
             <button id="copyPartnerHeaderBtn" class="outline btn-sm" title="Copy Authorization: Token <base64>">Copy Base64 Header</button>
           </div>
@@ -656,6 +696,56 @@
   let endpointsData = [];
   let rawPartnerToken = "";
   let rawSimToken = "";
+  let showFullSimToken = false;
+  let showFullPartnerToken = false;
+  let cachedSimB64 = "";
+  let cachedPartnerB64 = "";
+
+  function updateSimTokenDisplay() {
+    const el = document.getElementById("simulatorTokenDisplay");
+    const btn = document.getElementById("toggleSimTokenBtn");
+    const preview = document.getElementById("simHeaderPreview");
+    if (!el) return;
+    if (rawSimToken) {
+      if (showFullSimToken) {
+        el.textContent = rawSimToken;
+        if (btn) btn.textContent = "🙈 Hide Raw";
+      } else {
+        el.textContent = rawSimToken.length > 16
+          ? rawSimToken.slice(0, 8) + "••••••••" + rawSimToken.slice(-6)
+          : rawSimToken;
+        if (btn) btn.textContent = "👁 Show Raw";
+      }
+      if (preview) preview.textContent = `Authorization: Token ${cachedSimB64}`;
+    } else {
+      el.textContent = "—";
+      if (btn) btn.textContent = "👁 Show Raw";
+      if (preview) preview.textContent = "Authorization: Token <base64>";
+    }
+  }
+
+  function updatePartnerTokenDisplay() {
+    const el = document.getElementById("tokenDisplay");
+    const btn = document.getElementById("togglePartnerTokenBtn");
+    const preview = document.getElementById("partnerHeaderPreview");
+    if (!el) return;
+    if (rawPartnerToken) {
+      if (showFullPartnerToken) {
+        el.textContent = rawPartnerToken;
+        if (btn) btn.textContent = "🙈 Hide Raw";
+      } else {
+        el.textContent = rawPartnerToken.length > 16
+          ? rawPartnerToken.slice(0, 8) + "••••••••" + rawPartnerToken.slice(-6)
+          : rawPartnerToken;
+        if (btn) btn.textContent = "👁 Show Raw";
+      }
+      if (preview) preview.textContent = `Authorization: Token ${cachedPartnerB64}`;
+    } else {
+      el.textContent = "—";
+      if (btn) btn.textContent = "👁 Show Raw";
+      if (preview) preview.textContent = "Authorization: Token <base64>";
+    }
+  }
 
   const moduleColors = {
     locations: "ok",
@@ -711,31 +801,11 @@
         }
       }
 
-      let simB64 = data.activeSimulatorTokenBase64 || (rawSimToken ? btoa(rawSimToken) : "");
-      let partnerB64 = data.remoteTokenBase64 || (rawPartnerToken ? btoa(rawPartnerToken) : "");
+      cachedSimB64 = data.activeSimulatorTokenBase64 || (rawSimToken ? btoa(rawSimToken) : "");
+      cachedPartnerB64 = data.remoteTokenBase64 || (rawPartnerToken ? btoa(rawPartnerToken) : "");
 
-      if (rawSimToken) {
-        document.getElementById("simulatorTokenDisplay").textContent =
-          rawSimToken.length > 16
-            ? rawSimToken.slice(0, 8) + "••••••••" + rawSimToken.slice(-6)
-            : rawSimToken;
-        document.getElementById("simHeaderPreview").textContent = `Authorization: Token ${simB64}`;
-      } else {
-        document.getElementById("simulatorTokenDisplay").textContent = "—";
-        document.getElementById("simHeaderPreview").textContent = "Authorization: Token <base64>";
-      }
-
-      // Partner Remote Token
-      if (rawPartnerToken) {
-        document.getElementById("tokenDisplay").textContent =
-          rawPartnerToken.length > 16
-            ? rawPartnerToken.slice(0, 8) + "••••••••" + rawPartnerToken.slice(-6)
-            : rawPartnerToken;
-        document.getElementById("partnerHeaderPreview").textContent = `Authorization: Token ${partnerB64}`;
-      } else {
-        document.getElementById("tokenDisplay").textContent = "—";
-        document.getElementById("partnerHeaderPreview").textContent = "Authorization: Token <base64>";
-      }
+      updateSimTokenDisplay();
+      updatePartnerTokenDisplay();
 
       document.getElementById("rawJsonBox").textContent = JSON.stringify(data, null, 2);
 
@@ -790,6 +860,36 @@
     const wrap = document.getElementById("rawJsonWrap");
     wrap.style.display = wrap.style.display === "none" ? "block" : "none";
   });
+
+  const toggleSimTokenBtn = document.getElementById("toggleSimTokenBtn");
+  if (toggleSimTokenBtn) {
+    toggleSimTokenBtn.addEventListener("click", () => {
+      showFullSimToken = !showFullSimToken;
+      updateSimTokenDisplay();
+    });
+  }
+  const simTokenDisplay = document.getElementById("simulatorTokenDisplay");
+  if (simTokenDisplay) {
+    simTokenDisplay.addEventListener("click", () => {
+      showFullSimToken = !showFullSimToken;
+      updateSimTokenDisplay();
+    });
+  }
+
+  const togglePartnerTokenBtn = document.getElementById("togglePartnerTokenBtn");
+  if (togglePartnerTokenBtn) {
+    togglePartnerTokenBtn.addEventListener("click", () => {
+      showFullPartnerToken = !showFullPartnerToken;
+      updatePartnerTokenDisplay();
+    });
+  }
+  const partnerTokenDisplay = document.getElementById("tokenDisplay");
+  if (partnerTokenDisplay) {
+    partnerTokenDisplay.addEventListener("click", () => {
+      showFullPartnerToken = !showFullPartnerToken;
+      updatePartnerTokenDisplay();
+    });
+  }
 
   const copySimBtn = document.getElementById("copySimTokenBtn");
   if (copySimBtn) {
@@ -917,6 +1017,8 @@
     document.getElementById("cfgLocationsUrl").value = cfg.emspLocationsUrl || "";
     document.getElementById("cfgSessionsUrl").value = cfg.emspSessionsUrl || "";
     document.getElementById("cfgCdrsUrl").value = cfg.emspCdrsUrl || "";
+    document.getElementById("cfgOutboundToken").value = cfg.outboundAuthToken || "";
+    document.getElementById("cfgHeaderFormat").value = cfg.tokenHeaderFormat || "BASE64";
   }
 
   function renderSimulationOpsTable(ops) {
@@ -1007,6 +1109,41 @@
 
   document.getElementById("simLocationSelect").addEventListener("change", updateEvseSelect);
 
+  // Set EVSE to Preparing (Gun Connected / OCPI status BLOCKED)
+  async function triggerCpoPreparing() {
+    const locId = document.getElementById("simLocationSelect")?.value;
+    const evseUid = document.getElementById("simEvseSelect")?.value;
+    if (!locId) {
+      alert("Please select a location first.");
+      return;
+    }
+    const btn = document.getElementById("btnMakePreparingCpo");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Setting BLOCKED…";
+    }
+    try {
+      const res = await fetch(`/api/cpo/locations/${encodeURIComponent(locId)}/evses/${encodeURIComponent(evseUid || "")}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "BLOCKED", trigger: "MANUAL_PREPARING_GUN_CONNECTED" })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to set status");
+
+      showAlert(`🔌 EVSE '${data.evse_uid}' status set to BLOCKED (Preparing · Gun connected). Dispatched update to EMSP!`, "ok");
+      await fetchLocationsForSelect();
+      await refreshSimulationState();
+    } catch (err) {
+      showAlert("Could not set preparing status: " + err.message, "danger");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "🔌 make it prepairing";
+      }
+    }
+  }
+
   // Manual Start Session Trigger
   document.getElementById("btnStartSim").addEventListener("click", async () => {
     const btn = document.getElementById("btnStartSim");
@@ -1090,6 +1227,8 @@
         emspLocationsUrl: document.getElementById("cfgLocationsUrl").value.trim() || null,
         emspSessionsUrl: document.getElementById("cfgSessionsUrl").value.trim() || null,
         emspCdrsUrl: document.getElementById("cfgCdrsUrl").value.trim() || null,
+        outboundAuthToken: document.getElementById("cfgOutboundToken").value.trim() || null,
+        tokenHeaderFormat: document.getElementById("cfgHeaderFormat").value,
       };
 
       const res = await fetch("/api/simulation/config", {
@@ -1107,6 +1246,49 @@
     }
   });
 
+  // Test Outbound Token directly against EMSP
+  document.getElementById("btnTestOutboundAuth").addEventListener("click", async () => {
+    const feedback = document.getElementById("testAuthFeedback");
+    const testBtn = document.getElementById("btnTestOutboundAuth");
+    const url = document.getElementById("cfgSessionsUrl").value.trim() || document.getElementById("cfgLocationsUrl").value.trim();
+    const token = document.getElementById("cfgOutboundToken").value.trim() || null;
+    const format = document.getElementById("cfgHeaderFormat").value;
+
+    feedback.style.display = "block";
+    feedback.style.padding = "6px 10px";
+    feedback.style.borderRadius = "6px";
+    feedback.style.background = "#eff6ff";
+    feedback.style.color = "#1e40af";
+    feedback.textContent = "⏳ Sending probe test to EMSP endpoint...";
+    testBtn.disabled = true;
+
+    try {
+      const res = await fetch("/api/simulation/test-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, token, format }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+
+      if (data.success) {
+        feedback.style.background = "#dcfce7";
+        feedback.style.color = "#166534";
+        feedback.innerHTML = `<strong>✔ SUCCESS:</strong> ${escapeHtml(data.diagnostic)} (HTTP ${data.httpStatus}, OCPI ${data.ocpiStatusCode || 1000})`;
+      } else {
+        feedback.style.background = "#fee2e2";
+        feedback.style.color = "#991b1b";
+        feedback.innerHTML = `<strong>❌ FAILED:</strong> ${escapeHtml(data.diagnostic)} (HTTP ${data.httpStatus}, OCPI ${data.ocpiStatusCode || "N/A"})`;
+      }
+    } catch (err) {
+      feedback.style.background = "#fee2e2";
+      feedback.style.color = "#991b1b";
+      feedback.textContent = `❌ Test error: ${err.message}`;
+    } finally {
+      testBtn.disabled = false;
+    }
+  });
+
   // Toggle Config panel
   document.getElementById("toggleSimConfigBtn").addEventListener("click", () => {
     const sec = document.getElementById("simConfigSection");
@@ -1118,6 +1300,23 @@
       renderSimulationOpsTable(currentSimulationData.operations || []);
     }
   });
+
+  const btnClearSimLogs = document.getElementById("btnClearSimLogs");
+  if (btnClearSimLogs) {
+    btnClearSimLogs.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/simulation/logs", { method: "DELETE" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        if (currentSimulationData) {
+          currentSimulationData.operations = [];
+        }
+        renderSimulationOpsTable([]);
+        showAlert("Simulation lifecycle logs cleared.", "ok");
+      } catch (err) {
+        showAlert("Failed to clear logs: " + err.message, "bad");
+      }
+    });
+  }
 
   function showAlert(msg, type = "info") {
     const box = document.getElementById("simAlertBox");
@@ -1137,7 +1336,19 @@
     currentModalOp = op;
     document.getElementById("modalOpTitle").textContent = `${op.type} (${op.method} ${op.httpStatus})`;
     document.getElementById("modalOpSubtitle").textContent = `${op.url} · ${new Date(op.timestamp).toLocaleString()}`;
+    
+    const reqHeadersEl = document.getElementById("modalRequestHeadersPre");
+    if (reqHeadersEl) {
+      reqHeadersEl.textContent = op.requestHeaders ? JSON.stringify(op.requestHeaders, null, 2) : "None (Inbound command or internal operation)";
+    }
+    
     document.getElementById("modalRequestPre").textContent = op.requestBody ? JSON.stringify(op.requestBody, null, 2) : "None (Empty / GET)";
+    
+    const respHeadersEl = document.getElementById("modalResponseHeadersPre");
+    if (respHeadersEl) {
+      respHeadersEl.textContent = op.responseHeaders ? JSON.stringify(op.responseHeaders, null, 2) : "None (No headers captured)";
+    }
+    
     document.getElementById("modalResponsePre").textContent = op.responseBody ? JSON.stringify(op.responseBody, null, 2) : "None (No response body)";
     document.getElementById("payloadModalOverlay").style.display = "flex";
   };
@@ -1147,9 +1358,21 @@
     currentModalOp = null;
   };
 
+  window.copyModalRequestHeaders = function() {
+    if (currentModalOp && currentModalOp.requestHeaders) {
+      copyText(JSON.stringify(currentModalOp.requestHeaders, null, 2));
+    }
+  };
+
   window.copyModalRequest = function() {
     if (currentModalOp && currentModalOp.requestBody) {
       copyText(JSON.stringify(currentModalOp.requestBody, null, 2));
+    }
+  };
+
+  window.copyModalResponseHeaders = function() {
+    if (currentModalOp && currentModalOp.responseHeaders) {
+      copyText(JSON.stringify(currentModalOp.responseHeaders, null, 2));
     }
   };
 
@@ -1167,7 +1390,7 @@
 
 <!-- Payload Inspection Modal -->
 <div id="payloadModalOverlay" class="sim-modal-overlay">
-  <div class="sim-modal-card">
+  <div class="sim-modal-card" style="max-width: 800px;">
     <div class="sim-modal-header">
       <div>
         <h3 id="modalOpTitle" style="margin: 0; font-size: 16px; font-weight: 750;">Operation Details</h3>
@@ -1176,20 +1399,40 @@
       <button class="outline btn-sm" onclick="closePayloadModal()">✕ Close</button>
     </div>
     <div class="sim-modal-body">
+      <!-- Outbound Request Headers -->
       <div style="margin-bottom: 14px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Request Payload</strong>
-          <button class="outline btn-sm" onclick="copyModalRequest()">Copy Request</button>
+          <strong style="font-size: 12px; text-transform: uppercase; color: #1d4ed8;">🔑 Outbound HTTP Request Headers &amp; Token Diagnostic</strong>
+          <button class="outline btn-sm" onclick="copyModalRequestHeaders()">Copy Headers</button>
         </div>
-        <pre id="modalRequestPre">None</pre>
+        <pre id="modalRequestHeadersPre" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 11.5px; max-height: 200px; overflow: auto;">None</pre>
       </div>
 
+      <!-- Request Payload -->
+      <div style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Request Body (Payload)</strong>
+          <button class="outline btn-sm" onclick="copyModalRequest()">Copy Body</button>
+        </div>
+        <pre id="modalRequestPre" style="max-height: 220px; overflow: auto;">None</pre>
+      </div>
+
+      <!-- Response Headers -->
+      <div style="margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Remote Response HTTP Headers</strong>
+          <button class="outline btn-sm" onclick="copyModalResponseHeaders()">Copy Headers</button>
+        </div>
+        <pre id="modalResponseHeadersPre" style="max-height: 160px; overflow: auto;">None</pre>
+      </div>
+
+      <!-- Response Payload -->
       <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Response Payload</strong>
-          <button class="outline btn-sm" onclick="copyModalResponse()">Copy Response</button>
+          <strong style="font-size: 12px; text-transform: uppercase; color: var(--muted);">Response Body</strong>
+          <button class="outline btn-sm" onclick="copyModalResponse()">Copy Body</button>
         </div>
-        <pre id="modalResponsePre">None</pre>
+        <pre id="modalResponsePre" style="max-height: 220px; overflow: auto;">None</pre>
       </div>
     </div>
   </div>

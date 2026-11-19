@@ -155,6 +155,7 @@ app.use((req, res, next) => {
       requestId,
       correlationId,
       durationMs,
+      profileId: req.connectionProfileId || state.activeProfileId || null,
       request: {
         method: reqSnapshot.method,
         url: reqSnapshot.url,

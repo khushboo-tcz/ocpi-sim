@@ -341,9 +341,56 @@
       margin-top: 8px
     }
 
+    .code-block-wrap {
+      margin-top: 10px;
+    }
+
+    .code-block-wrap:first-of-type {
+      margin-top: 6px;
+    }
+
+    .code-pre-wrap {
+      position: relative;
+    }
+
+    .code-copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(30, 41, 59, 0.82);
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 5;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      transition: all 0.15s ease-in-out;
+      line-height: 1.2;
+      user-select: none;
+    }
+
+    .code-copy-btn:hover {
+      background: rgba(51, 65, 85, 0.95);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .code-copy-btn.copied {
+      background: #065f46 !important;
+      color: #6ee7b7 !important;
+      border-color: #10b981 !important;
+    }
+
     pre {
       margin: 0;
-      padding: 11px;
+      padding: 11px 75px 11px 11px;
       background: #0f172a;
       color: #d1fae5;
       border-radius: 7px;
@@ -352,7 +399,9 @@
       max-height: 330px;
       overflow: auto;
       font-size: 11px;
-      line-height: 1.5
+      user-select: text;
+      -webkit-user-select: text;
+      cursor: text;
     }
 
     .meta-strip {
@@ -561,7 +610,8 @@
 <body>
   <header>
     <h1>OCPI Traffic &amp; Audit Logs</h1>
-    <p>Real-time Inspection of OCPI Requests &amp; Responses <span id="dbBadge" class="badge neutral" style="margin-left: 8px;">DB: Checking…</span></p>
+    <p>Real-time Inspection of OCPI Requests &amp; Responses <span id="dbBadge" class="badge neutral"
+        style="margin-left: 8px;">DB: Checking…</span></p>
     <nav>
       <a href="/">← Handshake</a>
       <a href="/cpo">CPO Dashboard</a>
@@ -606,7 +656,8 @@
       <div id="updated" class="statusline">Loading logs…</div>
       <p class="hint">Authorization headers, tokens, and credentials are redacted before persistence. The actual HTTP
         request sent and actual response received are logged independently in MongoDB (collection:
-        <code>ocpiApiLogs</code>).</p>
+        <code>ocpiApiLogs</code>).
+      </p>
     </section>
     <section class="table-wrap">
       <table>
@@ -633,7 +684,8 @@
     </section>
     <p class="footer-note">Tip: For network timeouts or connection failures (e.g. <code>ECONNREFUSED</code>,
       <code>ENOTFOUND</code>), the response is stored as <code>null</code> and the transport error details are displayed
-      under Response received.</p>
+      under Response received.
+    </p>
     <dialog id="confirmModal" class="confirm-modal" aria-labelledby="modalTitle" aria-describedby="modalDesc">
       <div class="modal-card">
         <div class="modal-header">
@@ -672,6 +724,70 @@
     function pretty(value) { if (value === undefined || value === null) return '—'; if (typeof value === 'string') return value; try { return JSON.stringify(value, null, 2) } catch { return String(value) } }
     function badge(text, kind = 'neutral') { return node('span', 'badge ' + kind, text) }
     function eventTime(tx) { const raw = tx.request?.time || tx.response?.time || tx.latestTime; return raw ? new Date(raw).toLocaleString() : '—' }
+
+    function copyToClipboard(text, btn) {
+      if (!text) return;
+      const originalHTML = btn.innerHTML;
+      const onSuccess = () => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><polyline points="20 6 9 17 4 12"></polyline></svg><span>Copied!</span>';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = originalHTML;
+        }, 2000);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+          fallbackCopy(text, onSuccess);
+        });
+      } else {
+        fallbackCopy(text, onSuccess);
+      }
+    }
+
+    function fallbackCopy(text, onSuccess) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        ta.style.left = '-9999px';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (success && onSuccess) onSuccess();
+      } catch (err) {
+        console.error('Clipboard copy error:', err);
+      }
+    }
+
+    function createCodeBlock(title, rawContent, emptyFallback = '—') {
+      const wrap = node('div', 'code-block-wrap');
+      wrap.append(node('h4', '', title));
+
+      const preWrap = node('div', 'code-pre-wrap');
+      const text = (rawContent !== null && rawContent !== undefined) ? pretty(rawContent) : emptyFallback;
+      const pre = node('pre', '', text);
+
+      const copyBtn = node('button', 'code-copy-btn');
+      copyBtn.type = 'button';
+      copyBtn.title = 'Copy ' + title;
+      copyBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy</span>';
+
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const toCopy = (rawContent !== null && rawContent !== undefined) ? pretty(rawContent) : text;
+        copyToClipboard(toCopy, copyBtn);
+      });
+
+      preWrap.append(pre, copyBtn);
+      wrap.append(preWrap);
+      return wrap;
+    }
 
     function classify(tx) {
       if (tx.error && !tx.response) return 'TRANSPORT_ERROR';
@@ -718,6 +834,12 @@
         const isUnified = e.type === 'TRANSACTION' || Boolean(e.request) || (e.response !== undefined);
 
         if (isUnified) {
+          const ocpiMsg = e.response ? (e.response.ocpiStatusMessage ?? null) : (e.ocpiStatusMessage ?? null);
+          let resBody = e.response ? (e.response.body !== undefined ? e.response.body : null) : (e.responseBody ?? null);
+          if (resBody && typeof resBody === 'object' && resBody.status_message === '[REDACTED]' && ocpiMsg && ocpiMsg !== '[REDACTED]') {
+            resBody = { ...resBody, status_message: ocpiMsg };
+          }
+
           const tx = {
             id,
             direction: e.direction || 'OUTBOUND',
@@ -738,9 +860,9 @@
             response: e.response !== null && (e.response || e.httpStatus != null || e.responseBody !== undefined) ? {
               httpStatus: e.response ? e.response.httpStatus : e.httpStatus,
               headers: e.response ? (e.response.headers || {}) : (e.responseHeaders || {}),
-              body: e.response ? (e.response.body !== undefined ? e.response.body : null) : (e.responseBody ?? null),
+              body: resBody,
               ocpiStatus: e.response ? (e.response.ocpiStatusCode ?? e.response.ocpiStatus) : (e.ocpiStatus ?? e.ocpiStatusCode),
-              ocpiStatusMessage: e.response ? (e.response.ocpiStatusMessage ?? null) : (e.ocpiStatusMessage ?? null),
+              ocpiStatusMessage: ocpiMsg,
               durationMs: e.durationMs ?? null,
               time: e.time,
             } : null,
@@ -787,12 +909,17 @@
               time: e.time,
             };
           } else if (e.type === 'RESPONSE') {
+            let legBody = e.responseBody !== undefined ? e.responseBody : null;
+            const legMsg = e.ocpiStatusMessage || null;
+            if (legBody && typeof legBody === 'object' && legBody.status_message === '[REDACTED]' && legMsg && legMsg !== '[REDACTED]') {
+              legBody = { ...legBody, status_message: legMsg };
+            }
             tx.response = {
               httpStatus: e.httpStatus,
               headers: e.responseHeaders || {},
-              body: e.responseBody !== undefined ? e.responseBody : null,
+              body: legBody,
               ocpiStatus: e.ocpiStatus || e.ocpiStatusCode,
-              ocpiStatusMessage: e.ocpiStatusMessage,
+              ocpiStatusMessage: legMsg,
               durationMs: e.durationMs,
               time: e.time,
             };
@@ -855,11 +982,8 @@
         box.append(errBox);
       }
 
-      box.append(node('h4', '', 'Headers'));
-      box.append(node('pre', '', pretty(headers)));
-
-      box.append(node('h4', '', 'Body / Payload'));
-      box.append(node('pre', '', body !== null && body !== undefined ? pretty(body) : '— (No body)'));
+      box.append(createCodeBlock('Headers', headers));
+      box.append(createCodeBlock('Body / Payload', body, '— (No body)'));
 
       return box;
     }

@@ -344,6 +344,7 @@ async function trackedRequest(method, url, config = {}, body) {
       requestId,
       correlationId,
       durationMs,
+      profileId: config.profileId || state.activeProfileId || null,
       request: {
         method,
         url,
@@ -383,6 +384,7 @@ async function trackedRequest(method, url, config = {}, body) {
         requestId,
         correlationId,
         durationMs,
+        profileId: config.profileId || state.activeProfileId || null,
         request: {
           method,
           url,
@@ -409,6 +411,7 @@ async function trackedRequest(method, url, config = {}, body) {
         requestId,
         correlationId,
         durationMs,
+        profileId: config.profileId || state.activeProfileId || null,
         request: {
           method,
           url,
@@ -427,12 +430,24 @@ async function trackedRequest(method, url, config = {}, body) {
   }
 }
 
-async function persistHandshakeToDb({ role, partnerRoles, remoteToken, remoteVersionsUrl, remoteCredentialsUrl, endpoints, partnerLocationsUrl }) {
+async function persistHandshakeToDb({ role, partnerRoles, remoteToken, remoteVersionsUrl, remoteCredentialsUrl, endpoints, partnerLocationsUrl, connectionName, profileId }) {
   try {
     if (getConnectionStatus() === "CONNECTED") {
-      let profile = await OcpiConnectionProfile.findOne({ simulatorRole: role });
+      let profile = null;
+      if (profileId && mongoose.isValidObjectId(profileId)) {
+        profile = await OcpiConnectionProfile.findById(profileId);
+      }
+      if (!profile && connectionName) {
+        profile = await OcpiConnectionProfile.findOne({ name: connectionName, simulatorRole: role });
+      }
+      if (!profile) {
+        profile = await OcpiConnectionProfile.findOne({ simulatorRole: role });
+      }
       if (!profile) {
         profile = new OcpiConnectionProfile({ simulatorRole: role });
+      }
+      if (connectionName) {
+        profile.name = connectionName;
       }
       profile.status = "CONNECTED";
       profile.connectionMode = "HANDSHAKE";

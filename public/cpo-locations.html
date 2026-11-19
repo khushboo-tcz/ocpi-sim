@@ -183,6 +183,10 @@
   button.danger:hover { background: #b91c1c; }
   button.cpo { background: var(--cpo-color); color: white; }
   button.cpo:hover { background: var(--cpo-hover); }
+  button.warn, .btn.warn { background: #d97706; color: white; }
+  button.warn:hover, .btn.warn:hover { background: #b45309; }
+  button.ok, .btn.ok { background: #16a34a; color: white; }
+  button.ok:hover, .btn.ok:hover { background: #15803d; }
   .btn-sm { padding: 5px 10px; font-size: 11.5px; border-radius: 6px; }
 
   /* Form Elements */
@@ -1381,6 +1385,9 @@
             <div class="evse-title">
               <span class="badge purple">EVSE #${eIdx + 1}</span>
               <span class="code-font" style="font-size: 13px;">${evse.uid}</span>
+              <span class="badge ${evse.status === 'AVAILABLE' ? 'ok dot' : evse.status === 'BLOCKED' ? 'warn dot' : evse.status === 'CHARGING' ? 'purple dot' : 'neutral'}" style="font-size: 11px;">
+                ${evse.status === 'BLOCKED' ? 'BLOCKED (Preparing)' : evse.status}
+              </span>
             </div>
             <div style="display: flex; gap: 8px;">
               <button type="button" class="outline btn-sm" onclick="copyText('${evse.uid}')">Copy UID</button>
@@ -1405,6 +1412,33 @@
                 <input value="${evse.evse_id || ''}" placeholder="+91*CZK*E0001" oninput="updateEvseField(${eIdx}, 'evse_id', this.value)">
                 <button type="button" class="outline btn-sm" onclick="autoGenerateEvseId(${eIdx})">Gen</button>
               </div>
+            </div>
+          </div>
+
+          <!-- Charger Simulation Bar (Gun Connected / Preparing) -->
+          <div class="evse-simulator-box" style="margin: 10px 0 14px; padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 12.5px; font-weight: 700; color: #1e293b;">⚡ Charger / Gun Status:</span>
+              <span class="badge ${evse.status === 'BLOCKED' ? 'warn dot' : evse.status === 'CHARGING' ? 'purple dot' : evse.status === 'AVAILABLE' ? 'ok dot' : 'neutral'}" style="font-size: 11.5px;">
+                ${evse.status === 'BLOCKED' ? 'Preparing (Gun Connected · OCPI: BLOCKED)' : evse.status === 'CHARGING' ? 'Charging' : evse.status === 'AVAILABLE' ? 'Available (Idle)' : evse.status}
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" class="btn btn-sm ${evse.status === 'BLOCKED' ? 'secondary' : 'warn'}"
+                id="btnPreparing_${eIdx}"
+                onclick="triggerMakePreparing(${eIdx})"
+                style="font-weight: 750; font-size: 12px; padding: 6px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px;"
+                title="Simulates vehicle gun plugged in. Sends OCPI PUT with status BLOCKED to EMSP.">
+                🔌 make it prepairing
+              </button>
+              ${evse.status === 'BLOCKED' ? `
+                <button type="button" class="btn btn-sm ok"
+                  onclick="triggerMakeAvailable(${eIdx})"
+                  style="font-weight: 750; font-size: 12px; padding: 6px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border-radius: 6px;"
+                  title="Resets EVSE status back to AVAILABLE (gun disconnected).">
+                  ✓ Make Available
+                </button>
+              ` : ''}
             </div>
           </div>
 
@@ -1443,6 +1477,98 @@
   function updateEvseField(eIdx, field, val) {
     evseList[eIdx][field] = val;
     onFormChange();
+  }
+
+  async function triggerMakePreparing(eIdx) {
+    const evse = evseList[eIdx];
+    if (!evse) return;
+
+    // 1. Immediately update builder state
+    evse.status = "BLOCKED";
+    renderEvseCards();
+    onFormChange();
+
+    // 2. Resolve location ID
+    const locId = (document.getElementById("locId")?.value || editingId || "").trim();
+    const isSavedLocation = locationsData.some(l => l.id === locId) || isEditing;
+
+    if (isSavedLocation && locId) {
+      const btn = document.getElementById(`btnPreparing_${eIdx}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Sending...";
+      }
+      try {
+        const res = await fetch(`/api/cpo/locations/${encodeURIComponent(locId)}/evses/${encodeURIComponent(evse.uid)}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "BLOCKED", trigger: "MANUAL_PREPARING_GUN_CONNECTED" })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+          throw new Error(result.error || `HTTP ${res.status}`);
+        }
+        await fetchLocationsList();
+        showToast(`🔌 EVSE '${evse.uid}' set to BLOCKED (Preparing). Dispatched status update to EMSP!`);
+      } catch (err) {
+        showToast(`⚠️ Updated locally to BLOCKED: ${err.message}`);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    } else {
+      showToast(`🔌 EVSE '${evse.uid}' status set to BLOCKED (Preparing). Click 'Save Location' to register and push.`);
+    }
+  }
+
+  async function triggerMakeAvailable(eIdx) {
+    const evse = evseList[eIdx];
+    if (!evse) return;
+
+    evse.status = "AVAILABLE";
+    renderEvseCards();
+    onFormChange();
+
+    const locId = (document.getElementById("locId")?.value || editingId || "").trim();
+    const isSavedLocation = locationsData.some(l => l.id === locId) || isEditing;
+
+    if (isSavedLocation && locId) {
+      try {
+        const res = await fetch(`/api/cpo/locations/${encodeURIComponent(locId)}/evses/${encodeURIComponent(evse.uid)}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "AVAILABLE", trigger: "MANUAL_AVAILABLE_GUN_DISCONNECTED" })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.success) throw new Error(result.error || "Update failed");
+        await fetchLocationsList();
+        showToast(`✓ EVSE '${evse.uid}' reset to AVAILABLE.`);
+      } catch (err) {
+        showToast(`⚠️ Reset locally to AVAILABLE: ${err.message}`);
+      }
+    } else {
+      showToast(`✓ EVSE '${evse.uid}' set to AVAILABLE.`);
+    }
+  }
+
+  async function triggerModalEvseStatus(locId, evseUid, newStatus) {
+    try {
+      const res = await fetch(`/api/cpo/locations/${encodeURIComponent(locId)}/evses/${encodeURIComponent(evseUid)}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: newStatus,
+          trigger: newStatus === "BLOCKED" ? "MANUAL_PREPARING_GUN_CONNECTED" : "MANUAL_AVAILABLE_GUN_DISCONNECTED"
+        })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) throw new Error(result.error || `HTTP ${res.status}`);
+      await fetchLocationsList();
+      const updatedLoc = locationsData.find(l => l.id === locId);
+      if (updatedLoc) viewLocationModal(locId);
+      showToast(`🔌 EVSE '${evseUid}' status updated to ${newStatus}! Dispatched update to EMSP.`);
+    } catch (err) {
+      alert("Status update failed: " + err.message);
+    }
   }
 
   function updateConnectorField(eIdx, cIdx, field, val) {
@@ -1948,9 +2074,18 @@
 
     const evsesSummary = (loc.evses || []).map((e, idx) => `
       <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
           <strong style="font-size: 13px;">⚡ EVSE #${idx + 1}: <span class="code-font">${e.uid}</span></strong>
-          <span class="badge ${e.status === 'AVAILABLE' ? 'ok' : 'info'}">${e.status}</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge ${e.status === 'AVAILABLE' ? 'ok dot' : e.status === 'BLOCKED' ? 'warn dot' : e.status === 'CHARGING' ? 'purple dot' : 'info'}">
+              ${e.status === 'BLOCKED' ? 'Preparing (BLOCKED)' : e.status}
+            </span>
+            <button type="button" class="btn btn-sm ${e.status === 'BLOCKED' ? 'secondary' : 'warn'}"
+              onclick="triggerModalEvseStatus('${loc.id}', '${e.uid}', '${e.status === 'BLOCKED' ? 'AVAILABLE' : 'BLOCKED'}')"
+              style="font-size: 11px; font-weight: 700; padding: 3px 9px; cursor: pointer;">
+              ${e.status === 'BLOCKED' ? '✓ Make Available' : '🔌 make it prepairing'}
+            </button>
+          </div>
         </div>
         <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
           ${(e.connectors || []).length} Connectors: ${(e.connectors || []).map(c => `${c.standard} (${c.power_type})`).join(", ")}

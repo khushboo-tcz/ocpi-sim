@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const { getConnectionStatus } = require("../db/connection");
-const { OcpiLocation } = require("../models/OcpiLocation");
-const OcpiTariff = require("../models/OcpiTariff");
-const OcpiSession = require("../models/OcpiSession");
-const OcpiCdr = require("../models/OcpiCdr");
+const OcpiEmspLocation = require("../models/OcpiEmspLocation");
+const OcpiEmspTariff = require("../models/OcpiEmspTariff");
+const OcpiEmspSession = require("../models/OcpiEmspSession");
+const OcpiEmspCdr = require("../models/OcpiEmspCdr");
 const OcpiToken = require("../models/OcpiToken");
+const { validateEmspAuth } = require("../services/emspService");
 const {
   CONFIG,
   memoryLocations,
@@ -17,7 +18,6 @@ const {
   toCleanOcpiTariff,
   ocpiResponse,
   buildLinkHeader,
-  validateOcpiAuth,
   log,
 } = require("../services/simulatorState");
 
@@ -26,31 +26,33 @@ const {
 /* -------------------------------------------------------------------------- */
 
 // GET /locations/:country_code/:party_id/:location_id
-router.get("/locations/:country_code/:party_id/:location_id", validateOcpiAuth, async (req, res) => {
+router.get("/locations/:country_code/:party_id/:location_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, location_id } = req.params;
   try {
     let loc = null;
-    if (getConnectionStatus() === "CONNECTED") {
-      loc = await OcpiLocation.findOne({
+    if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+      loc = await OcpiEmspLocation.findOne({
+        connectionProfileId: req.connectionProfileId,
         country_code: country_code.toUpperCase(),
         party_id: party_id.toUpperCase(),
         id: location_id,
       }).lean();
-    } else {
+    }
+    if (!loc) {
       loc = memoryLocations.get(location_id);
     }
 
     if (!loc) {
       return res.status(200).json(ocpiResponse(null, 2003, `Unknown Location: ${location_id}`));
     }
-    return res.json(ocpiResponse(toCleanOcpiLocation(loc)));
+    return res.json(ocpiResponse(loc.rawPayload || toCleanOcpiLocation(loc)));
   } catch (err) {
     return res.status(500).json(ocpiResponse(null, 3000, err.message));
   }
 });
 
 // PUT /locations/:country_code/:party_id/:location_id (CPO pushes location to eMSP)
-router.put("/locations/:country_code/:party_id/:location_id", validateOcpiAuth, async (req, res) => {
+router.put("/locations/:country_code/:party_id/:location_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, location_id } = req.params;
   const payload = req.body || {};
 
@@ -59,10 +61,44 @@ router.put("/locations/:country_code/:party_id/:location_id", validateOcpiAuth, 
   payload.party_id = party_id.toUpperCase();
   payload.last_updated = payload.last_updated || new Date().toISOString();
 
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiLocation.findOneAndUpdate(
-      { country_code: payload.country_code, party_id: payload.party_id, id: location_id },
-      payload,
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspLocation.findOneAndUpdate(
+      {
+        connectionProfileId: req.connectionProfileId,
+        country_code: payload.country_code,
+        party_id: payload.party_id,
+        id: location_id,
+      },
+      {
+        $set: {
+          connectionProfileId: req.connectionProfileId,
+          country_code: payload.country_code,
+          party_id: payload.party_id,
+          id: location_id,
+          name: payload.name || null,
+          address: payload.address || "",
+          city: payload.city || "",
+          postal_code: payload.postal_code || null,
+          state: payload.state || null,
+          country: payload.country || payload.country_code,
+          coordinates: payload.coordinates || { latitude: "0", longitude: "0" },
+          related_locations: payload.related_locations || [],
+          parking_type: payload.parking_type || null,
+          evses: Array.isArray(payload.evses) ? payload.evses : [],
+          directions: payload.directions || [],
+          operator: payload.operator || null,
+          suboperator: payload.suboperator || null,
+          owner: payload.owner || null,
+          facilities: payload.facilities || [],
+          time_zone: payload.time_zone || "UTC",
+          opening_times: payload.opening_times || null,
+          charging_when_closed: payload.charging_when_closed ?? true,
+          images: payload.images || [],
+          energy_mix: payload.energy_mix || null,
+          rawPayload: payload,
+          last_updated: payload.last_updated,
+        },
+      },
       { upsert: true, new: true }
     );
   }
@@ -73,18 +109,29 @@ router.put("/locations/:country_code/:party_id/:location_id", validateOcpiAuth, 
 });
 
 // PATCH /locations/:country_code/:party_id/:location_id
-router.patch("/locations/:country_code/:party_id/:location_id", validateOcpiAuth, async (req, res) => {
+router.patch("/locations/:country_code/:party_id/:location_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, location_id } = req.params;
   const updates = req.body || {};
   updates.last_updated = new Date().toISOString();
 
   let existing = memoryLocations.get(location_id) || {};
-  const updated = { ...existing, ...updates, id: location_id, country_code: country_code.toUpperCase(), party_id: party_id.toUpperCase() };
+  const updated = {
+    ...existing,
+    ...updates,
+    id: location_id,
+    country_code: country_code.toUpperCase(),
+    party_id: party_id.toUpperCase(),
+  };
 
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiLocation.findOneAndUpdate(
-      { country_code: country_code.toUpperCase(), party_id: party_id.toUpperCase(), id: location_id },
-      { $set: updates },
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspLocation.findOneAndUpdate(
+      {
+        connectionProfileId: req.connectionProfileId,
+        country_code: country_code.toUpperCase(),
+        party_id: party_id.toUpperCase(),
+        id: location_id,
+      },
+      { $set: { ...updates, last_updated: updates.last_updated } },
       { upsert: true, new: true }
     );
   }
@@ -94,19 +141,36 @@ router.patch("/locations/:country_code/:party_id/:location_id", validateOcpiAuth
   return res.json(ocpiResponse(null, 1000, "Location patched by eMSP"));
 });
 
-// EVSE receiver
-router.put("/locations/:country_code/:party_id/:location_id/:evse_uid", validateOcpiAuth, async (req, res) => {
-  const { location_id, evse_uid } = req.params;
+// PUT /locations/:country_code/:party_id/:location_id/:evse_uid
+router.put("/locations/:country_code/:party_id/:location_id/:evse_uid", validateEmspAuth, async (req, res) => {
+  const { country_code, party_id, location_id, evse_uid } = req.params;
   const evseData = req.body || {};
   evseData.uid = evse_uid;
 
-  let loc = memoryLocations.get(location_id) || { id: location_id, evses: [] };
-  if (!Array.isArray(loc.evses)) loc.evses = [];
-  const idx = loc.evses.findIndex((e) => e.uid === evse_uid);
-  if (idx >= 0) loc.evses[idx] = evseData;
-  else loc.evses.push(evseData);
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    const loc = await OcpiEmspLocation.findOne({
+      connectionProfileId: req.connectionProfileId,
+      country_code: country_code.toUpperCase(),
+      party_id: party_id.toUpperCase(),
+      id: location_id,
+    });
+    if (loc) {
+      if (!Array.isArray(loc.evses)) loc.evses = [];
+      const idx = loc.evses.findIndex((e) => e.uid === evse_uid);
+      if (idx >= 0) loc.evses[idx] = evseData;
+      else loc.evses.push(evseData);
+      loc.last_updated = new Date().toISOString();
+      await loc.save();
+    }
+  }
 
-  memoryLocations.set(location_id, loc);
+  let memLoc = memoryLocations.get(location_id) || { id: location_id, evses: [] };
+  if (!Array.isArray(memLoc.evses)) memLoc.evses = [];
+  const idx = memLoc.evses.findIndex((e) => e.uid === evse_uid);
+  if (idx >= 0) memLoc.evses[idx] = evseData;
+  else memLoc.evses.push(evseData);
+  memoryLocations.set(location_id, memLoc);
+
   return res.json(ocpiResponse(null, 1000, "EVSE saved by eMSP"));
 });
 
@@ -115,31 +179,33 @@ router.put("/locations/:country_code/:party_id/:location_id/:evse_uid", validate
 /* -------------------------------------------------------------------------- */
 
 // GET /tariffs/:country_code/:party_id/:tariff_id
-router.get("/tariffs/:country_code/:party_id/:tariff_id", validateOcpiAuth, async (req, res) => {
+router.get("/tariffs/:country_code/:party_id/:tariff_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, tariff_id } = req.params;
   try {
     let tariff = null;
-    if (getConnectionStatus() === "CONNECTED") {
-      tariff = await OcpiTariff.findOne({
+    if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+      tariff = await OcpiEmspTariff.findOne({
+        connectionProfileId: req.connectionProfileId,
         country_code: country_code.toUpperCase(),
         party_id: party_id.toUpperCase(),
         id: tariff_id,
       }).lean();
-    } else {
+    }
+    if (!tariff) {
       tariff = memoryTariffs.get(tariff_id);
     }
 
     if (!tariff) {
       return res.status(200).json(ocpiResponse(null, 2003, `Unknown Tariff: ${tariff_id}`));
     }
-    return res.json(ocpiResponse(toCleanOcpiTariff(tariff)));
+    return res.json(ocpiResponse(tariff.rawPayload || toCleanOcpiTariff(tariff)));
   } catch (err) {
     return res.status(500).json(ocpiResponse(null, 3000, err.message));
   }
 });
 
 // PUT /tariffs/:country_code/:party_id/:tariff_id (CPO pushes tariff to eMSP)
-router.put("/tariffs/:country_code/:party_id/:tariff_id", validateOcpiAuth, async (req, res) => {
+router.put("/tariffs/:country_code/:party_id/:tariff_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, tariff_id } = req.params;
   const payload = req.body || {};
 
@@ -148,10 +214,34 @@ router.put("/tariffs/:country_code/:party_id/:tariff_id", validateOcpiAuth, asyn
   payload.party_id = party_id.toUpperCase();
   payload.last_updated = payload.last_updated || new Date().toISOString();
 
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiTariff.findOneAndUpdate(
-      { country_code: payload.country_code, party_id: payload.party_id, id: tariff_id },
-      payload,
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspTariff.findOneAndUpdate(
+      {
+        connectionProfileId: req.connectionProfileId,
+        country_code: payload.country_code,
+        party_id: payload.party_id,
+        id: tariff_id,
+      },
+      {
+        $set: {
+          connectionProfileId: req.connectionProfileId,
+          country_code: payload.country_code,
+          party_id: payload.party_id,
+          id: tariff_id,
+          currency: payload.currency || "EUR",
+          type: payload.type || "REGULAR",
+          tariff_alt_text: payload.tariff_alt_text || [],
+          tariff_alt_url: payload.tariff_alt_url || null,
+          min_price: payload.min_price || null,
+          max_price: payload.max_price || null,
+          start_date_time: payload.start_date_time || null,
+          end_date_time: payload.end_date_time || null,
+          elements: payload.elements || [],
+          price_summary: payload.price_summary || "",
+          rawPayload: payload,
+          last_updated: payload.last_updated,
+        },
+      },
       { upsert: true, new: true }
     );
   }
@@ -162,10 +252,11 @@ router.put("/tariffs/:country_code/:party_id/:tariff_id", validateOcpiAuth, asyn
 });
 
 // DELETE /tariffs/:country_code/:party_id/:tariff_id
-router.delete("/tariffs/:country_code/:party_id/:tariff_id", validateOcpiAuth, async (req, res) => {
+router.delete("/tariffs/:country_code/:party_id/:tariff_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, tariff_id } = req.params;
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiTariff.deleteOne({
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspTariff.deleteOne({
+      connectionProfileId: req.connectionProfileId,
       country_code: country_code.toUpperCase(),
       party_id: party_id.toUpperCase(),
       id: tariff_id,
@@ -181,25 +272,33 @@ router.delete("/tariffs/:country_code/:party_id/:tariff_id", validateOcpiAuth, a
 /* -------------------------------------------------------------------------- */
 
 // GET /sessions/:country_code/:party_id/:session_id
-router.get("/sessions/:country_code/:party_id/:session_id", validateOcpiAuth, async (req, res) => {
-  const { session_id } = req.params;
+router.get("/sessions/:country_code/:party_id/:session_id", validateEmspAuth, async (req, res) => {
+  const { country_code, party_id, session_id } = req.params;
   try {
-    let session = memorySessions.get(session_id);
-    if (!session && getConnectionStatus() === "CONNECTED") {
-      session = await OcpiSession.findOne({ id: session_id }).lean();
+    let session = null;
+    if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+      session = await OcpiEmspSession.findOne({
+        connectionProfileId: req.connectionProfileId,
+        country_code: country_code.toUpperCase(),
+        party_id: party_id.toUpperCase(),
+        id: session_id,
+      }).lean();
+    }
+    if (!session) {
+      session = memorySessions.get(session_id);
     }
 
     if (!session) {
       return res.status(200).json(ocpiResponse(null, 2003, `Unknown Session: ${session_id}`));
     }
-    return res.json(ocpiResponse(session));
+    return res.json(ocpiResponse(session.rawPayload || session));
   } catch (err) {
     return res.status(500).json(ocpiResponse(null, 3000, err.message));
   }
 });
 
 // PUT /sessions/:country_code/:party_id/:session_id (CPO pushes session to eMSP)
-router.put("/sessions/:country_code/:party_id/:session_id", validateOcpiAuth, async (req, res) => {
+router.put("/sessions/:country_code/:party_id/:session_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, session_id } = req.params;
   const payload = req.body || {};
 
@@ -208,10 +307,38 @@ router.put("/sessions/:country_code/:party_id/:session_id", validateOcpiAuth, as
   payload.party_id = party_id.toUpperCase();
   payload.last_updated = payload.last_updated || new Date().toISOString();
 
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiSession.findOneAndUpdate(
-      { country_code: payload.country_code, party_id: payload.party_id, id: session_id },
-      payload,
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspSession.findOneAndUpdate(
+      {
+        connectionProfileId: req.connectionProfileId,
+        country_code: payload.country_code,
+        party_id: payload.party_id,
+        id: session_id,
+      },
+      {
+        $set: {
+          connectionProfileId: req.connectionProfileId,
+          country_code: payload.country_code,
+          party_id: payload.party_id,
+          id: session_id,
+          start_date_time: payload.start_date_time || new Date().toISOString(),
+          end_date_time: payload.end_date_time || null,
+          kwh: payload.kwh ?? 0,
+          cdr_token: payload.cdr_token || null,
+          auth_method: payload.auth_method || "COMMAND",
+          authorization_reference: payload.authorization_reference || null,
+          location_id: payload.location_id || null,
+          evse_uid: payload.evse_uid || null,
+          connector_id: payload.connector_id || null,
+          meter_id: payload.meter_id || null,
+          currency: payload.currency || "EUR",
+          charging_periods: payload.charging_periods || [],
+          total_cost: payload.total_cost || null,
+          status: payload.status || "ACTIVE",
+          rawPayload: payload,
+          last_updated: payload.last_updated,
+        },
+      },
       { upsert: true, new: true }
     );
   }
@@ -222,18 +349,29 @@ router.put("/sessions/:country_code/:party_id/:session_id", validateOcpiAuth, as
 });
 
 // PATCH /sessions/:country_code/:party_id/:session_id
-router.patch("/sessions/:country_code/:party_id/:session_id", validateOcpiAuth, async (req, res) => {
+router.patch("/sessions/:country_code/:party_id/:session_id", validateEmspAuth, async (req, res) => {
   const { country_code, party_id, session_id } = req.params;
   const updates = req.body || {};
   updates.last_updated = new Date().toISOString();
 
   let existing = memorySessions.get(session_id) || {};
-  const updated = { ...existing, ...updates, id: session_id, country_code: country_code.toUpperCase(), party_id: party_id.toUpperCase() };
+  const updated = {
+    ...existing,
+    ...updates,
+    id: session_id,
+    country_code: country_code.toUpperCase(),
+    party_id: party_id.toUpperCase(),
+  };
 
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiSession.findOneAndUpdate(
-      { country_code: country_code.toUpperCase(), party_id: party_id.toUpperCase(), id: session_id },
-      { $set: updates },
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspSession.findOneAndUpdate(
+      {
+        connectionProfileId: req.connectionProfileId,
+        country_code: country_code.toUpperCase(),
+        party_id: party_id.toUpperCase(),
+        id: session_id,
+      },
+      { $set: { ...updates, last_updated: updates.last_updated } },
       { upsert: true, new: true }
     );
   }
@@ -248,36 +386,86 @@ router.patch("/sessions/:country_code/:party_id/:session_id", validateOcpiAuth, 
 /* -------------------------------------------------------------------------- */
 
 // GET /cdrs/:cdr_id
-router.get("/cdrs/:cdr_id", validateOcpiAuth, async (req, res) => {
+router.get("/cdrs/:cdr_id", validateEmspAuth, async (req, res) => {
   const { cdr_id } = req.params;
   try {
-    let cdr = memoryCdrs.get(cdr_id);
-    if (!cdr && getConnectionStatus() === "CONNECTED") {
-      cdr = await OcpiCdr.findOne({ id: cdr_id }).lean();
+    let cdr = null;
+    if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+      cdr = await OcpiEmspCdr.findOne({
+        connectionProfileId: req.connectionProfileId,
+        id: cdr_id,
+      }).lean();
+    }
+    if (!cdr) {
+      cdr = memoryCdrs.get(cdr_id);
     }
 
     if (!cdr) {
       return res.status(200).json(ocpiResponse(null, 2003, `Unknown CDR: ${cdr_id}`));
     }
-    return res.json(ocpiResponse(cdr));
+    return res.json(ocpiResponse(cdr.rawPayload || cdr));
   } catch (err) {
     return res.status(500).json(ocpiResponse(null, 3000, err.message));
   }
 });
 
 // POST /cdrs (CPO posts finalized CDR to eMSP per OCPI 2.2.1 Section 8.3)
-router.post("/cdrs", validateOcpiAuth, async (req, res) => {
+router.post("/cdrs", validateEmspAuth, async (req, res) => {
   const payload = req.body || {};
   if (!payload.id) {
     return res.status(200).json(ocpiResponse(null, 2001, "Missing CDR id"));
   }
 
   payload.last_updated = payload.last_updated || new Date().toISOString();
+  const partnerRoles = req.connectionProfile?.partnerRoles || [];
+  const defaultCountry = partnerRoles[0]?.country_code || "IN";
+  const defaultParty = partnerRoles[0]?.party_id || "CZS";
 
-  if (getConnectionStatus() === "CONNECTED") {
-    await OcpiCdr.findOneAndUpdate(
-      { country_code: payload.country_code, party_id: payload.party_id, id: payload.id },
-      payload,
+  const country_code = (payload.country_code || defaultCountry).toUpperCase().trim();
+  const party_id = (payload.party_id || defaultParty).toUpperCase().trim();
+
+  if (getConnectionStatus() === "CONNECTED" && req.connectionProfileId) {
+    await OcpiEmspCdr.findOneAndUpdate(
+      {
+        connectionProfileId: req.connectionProfileId,
+        country_code,
+        party_id,
+        id: payload.id,
+      },
+      {
+        $set: {
+          connectionProfileId: req.connectionProfileId,
+          country_code,
+          party_id,
+          id: payload.id,
+          start_date_time: payload.start_date_time || new Date().toISOString(),
+          stop_date_time: payload.stop_date_time || payload.end_date_time || null,
+          end_date_time: payload.end_date_time || payload.stop_date_time || null,
+          session_id: payload.session_id || null,
+          cdr_token: payload.cdr_token || null,
+          auth_method: payload.auth_method || "COMMAND",
+          authorization_reference: payload.authorization_reference || null,
+          cdr_location: payload.cdr_location || {},
+          meter_id: payload.meter_id || null,
+          currency: payload.currency || "EUR",
+          tariffs: payload.tariffs || [],
+          charging_periods: payload.charging_periods || [],
+          total_cost: payload.total_cost || { excl_vat: 0, incl_vat: 0 },
+          total_fixed_cost: payload.total_fixed_cost || null,
+          total_energy: payload.total_energy || 0,
+          total_energy_cost: payload.total_energy_cost || null,
+          total_time: payload.total_time || 0,
+          total_time_cost: payload.total_time_cost || null,
+          total_parking_time: payload.total_parking_time || null,
+          total_parking_cost: payload.total_parking_cost || null,
+          remark: payload.remark || null,
+          invoice_reference_id: payload.invoice_reference_id || null,
+          credit: payload.credit || false,
+          credit_reference_id: payload.credit_reference_id || null,
+          rawPayload: payload,
+          last_updated: payload.last_updated,
+        },
+      },
       { upsert: true, new: true }
     );
   }
@@ -288,7 +476,7 @@ router.post("/cdrs", validateOcpiAuth, async (req, res) => {
     total_cost: payload.total_cost,
   });
 
-  // Per OCPI 2.2.1 Section 8.3, return HTTP 201 Created with Location header or OCPI 1000
+  // Per OCPI 2.2.1 Section 8.3, return HTTP 201 Created with Location header
   res.set("Location", `${CONFIG.baseUrl}${req.baseUrl}/cdrs/${payload.id}`);
   return res.status(201).json(ocpiResponse(null, 1000, "CDR created"));
 });
@@ -298,7 +486,7 @@ router.post("/cdrs", validateOcpiAuth, async (req, res) => {
 /* -------------------------------------------------------------------------- */
 
 // GET /tokens (CPO requests token list with pagination & date filters)
-router.get("/tokens", validateOcpiAuth, async (req, res) => {
+router.get("/tokens", validateEmspAuth, async (req, res) => {
   try {
     const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
@@ -341,7 +529,7 @@ router.get("/tokens", validateOcpiAuth, async (req, res) => {
 });
 
 // POST /tokens/:token_uid/authorize (Real-time authorization check per OCPI 2.2.1 Section 10.3)
-router.post("/tokens/:token_uid/authorize", validateOcpiAuth, async (req, res) => {
+router.post("/tokens/:token_uid/authorize", validateEmspAuth, async (req, res) => {
   const { token_uid } = req.params;
   const locationRef = req.body || {};
 
@@ -353,7 +541,6 @@ router.post("/tokens/:token_uid/authorize", validateOcpiAuth, async (req, res) =
   log(`eMSP real-time Authorization check for Token ${token_uid}`, { locationRef, found: Boolean(token) });
 
   if (token && token.valid) {
-    // Standard OCPI 2.2.1 AuthorizationInfo
     return res.json(
       ocpiResponse({
         allowed: "ALLOWED",
@@ -396,7 +583,7 @@ router.post("/tokens/:token_uid/authorize", validateOcpiAuth, async (req, res) =
 /* -------------------------------------------------------------------------- */
 
 // POST /commands/:command/:uid (CPO sends async command result to eMSP)
-router.post("/commands/:command/:uid", validateOcpiAuth, (req, res) => {
+router.post("/commands/:command/:uid", validateEmspAuth, (req, res) => {
   const { command, uid } = req.params;
   const result = req.body;
 
@@ -409,7 +596,7 @@ router.post("/commands/:command/:uid", validateOcpiAuth, (req, res) => {
 /* -------------------------------------------------------------------------- */
 
 // POST /chargingprofiles/callback/:session_id
-router.post("/chargingprofiles/callback/:session_id", validateOcpiAuth, (req, res) => {
+router.post("/chargingprofiles/callback/:session_id", validateEmspAuth, (req, res) => {
   const { session_id } = req.params;
   const result = req.body;
 
